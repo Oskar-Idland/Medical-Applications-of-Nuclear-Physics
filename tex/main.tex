@@ -1,0 +1,68 @@
+\documentclass[reprint,english,notitlepage]{revtex4-2}
+\usepackage{amsmath}
+\usepackage{physics,amssymb}
+\usepackage{unicode-math}
+\usepackage[english]{babel}
+\usepackage{esint}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{subfigure}
+\usepackage[unicode=true]{hyperref}
+% \usepackage[style=science, backend=biber]{biblatex}
+% \addbibresource{References_Part_4.bib} % TODO: Slett før innlevering
+\hypersetup{%
+    colorlinks,
+    linkcolor={red!50!black},
+    citecolor={blue!50!black},
+    urlcolor={blue!80!black}}
+
+% \lstset{inputpath=,
+% backgroundcolor=\color{white!88!black},
+% basicstyle={\ttfamily\scriptsize},
+% commentstyle=\color{magenta},
+% language=Python,
+% morekeywords={True,False},
+% tabsize=4,
+% stringstyle=\color{green!55!black},
+% frame=single,
+% keywordstyle=\color{blue},
+% showstringspaces=false,
+% columns=fullflexible,
+% keepspaces=true}
+
+\begin{document}
+
+\title{title}
+\author{Oskar Idland}
+\date{\today}
+\affiliation{University of Oslo}
+
+\begin{abstract}
+    % This is an abstract \colorbox{red}{Complete this summary at the end of the paper}
+\end{abstract}
+\maketitle
+
+\section{Theory} \label{sec: theory}
+\input{Theory}
+
+
+\section{Method} \label{sec: method}
+\input{Method}
+
+\section{Results} \label{sec: results}
+\input{Results}
+
+\section{Discussion} \label{sec: discussion}
+\input{Discussion}
+
+\section{Conclusion} \label{sec: conclusion}
+\input{Conclusion}
+
+\section{Appendix} \label{sec: appendix}
+
+\section*{ACKNOWLEDGMENTS}
+
+\section*{References} \label{sec: references}
+
+\end{document}

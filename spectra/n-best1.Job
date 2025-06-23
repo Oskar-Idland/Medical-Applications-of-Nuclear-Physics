@@ -1,0 +1,11 @@
+
+stop
+clear
+set_preset_real 5
+loop 6
+  start
+  wait
+  save job5_Ag5_3min_real5_loop6_???.chn
+  save job5_Ag5_3min_real5_loop6_???.spe
+  clear
+end_loop

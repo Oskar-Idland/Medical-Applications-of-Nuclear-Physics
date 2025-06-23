@@ -1,4 +1,7 @@
 import curie as ci
+import pathlib
+root = pathlib.Path(__file__).parent
+print(root)
 
 spec1 = 'AD022619_Cs137_31.6cm_HPGE.Spe'
 spec2 = 'AE022619_Ba133_31.6cm_HPGE.Spe'
@@ -15,3 +18,4 @@ sp.fit_config = {'SNR_min': 3.5, 'dE_511': 9}
 sp.saveas('peak_data_AB02262019_Ni04_31.6cm_HPGE.csv')
 sp.saveas('peak_data_AB02262019_Ni04_31.6cm_HPGE.pdf')
 sp.saveas('peak_data_AB02262019_Ni04_31.6cm_HPGE.json')
+
