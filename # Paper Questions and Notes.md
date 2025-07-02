@@ -43,9 +43,6 @@ A collection of the important parts of the papers to be used in our own report. 
 
 ## Hannah 
 ### Q's
-- Does $^{\text{nat}}\text{Ir}(d, x)$, mean Iridium with natural isotopic abundance, being hit by a deuteron beam, resulting in am unspecified reaction $x$?
-
-- Are we supposed to use the experiments to get an average activity for each loops duration, then fit the curve to get $A_0$?
 
 ### Important Notes for Report
 #### Background and concepts in targeted radionuclide therapy
