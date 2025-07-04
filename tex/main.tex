@@ -9,6 +9,7 @@
 \usepackage{listings}
 \usepackage{subfigure}
 \usepackage[unicode=true]{hyperref}
+\usepackage{cleveref}
 % \usepackage[style=science, backend=biber]{biblatex}
 % \addbibresource{References_Part_4.bib} % TODO: Slett før innlevering
 \hypersetup{%
@@ -33,8 +34,8 @@
 
 \begin{document}
 
-\title{title}
-\author{Oskar Idland}
+\title{Medical Applications of Nuclear Physics}
+\author{Kristian Vorland Liodden \& Oskar Ekeid Idland}
 \date{\today}
 \affiliation{University of Oslo}
 
@@ -43,11 +44,17 @@
 \end{abstract}
 \maketitle
 
+\section*{Introduction} \label{sec: introduction}
+\input{Introduction}
+
 \section{Theory} \label{sec: theory}
 \input{Theory}
 
-\section{Method} \label{sec: method}
-\input{Method}
+\section{Experimental Setup} \label{sec: Expermintal Setup}
+\input{ExperimentalSetup}
+
+\section{Analysis} \label{sec: analysis}
+\input{Analysis}
 
 \section{Results} \label{sec: results}
 \input{Results}
