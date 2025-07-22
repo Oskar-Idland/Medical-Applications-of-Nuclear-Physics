@@ -4,6 +4,7 @@ import requests
 import matplotlib.pyplot as plt
 from urllib.request import urlopen
 
+
 class Tendl:
     def __init__(self, target, beamParticle):
         # self.target = target # target = {"Ir191": 0.373, "Ir193": 0.627}
@@ -203,7 +204,7 @@ class Tendl:
 
         return energy, xs           
 
-from scipy.interpolate import splev, splrep
+from scipy.interpolate import PchipInterpolator
 import numpy as np
 
 class Tools:
@@ -211,13 +212,13 @@ class Tools:
         if zeroPadding:
             x, y = self.zeroPadding(x,y)
 
-        tck = splrep(x, y, s=0)
+        spl = PchipInterpolator(x, y)
         if xlimit: 
             x = np.linspace(1, xlimit, 1000)
-        # else:
-        #     x_new = np.linspace(1, 100, 1000)
+        else:
+            x = np.linspace(1, max(x), 1000)
 
-        y = splev(x, tck, der=0)
+        y = spl(x)
         return x, y
 
     def zeroPadding(self, x, y):
