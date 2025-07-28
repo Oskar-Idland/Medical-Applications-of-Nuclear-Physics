@@ -78,7 +78,7 @@ class Tendl:
 
 
 
-    def _tendlDeuteronData(self, productZ: str, productA: str, isomerLevel: str | None = None) -> tuple[list[NDArray], list[NDArray]]:
+    def _tendlDeuteronData(self, productZ: str, productA: str, isomerLevel: str | None = None) -> tuple[NDArray, NDArray]:
         """
         Retrieves and processes TENDL deuteron data for a specified product isotope and optional isomer level.
         This method fetches cross-section data for deuteron-induced reactions from TENDL, interpolates the data,
@@ -121,17 +121,18 @@ class Tendl:
         if len(E) == 0 or len(Cs) == 0:
             raise Exception("TENDL: No data found for target: " + targetFoil + " for productZ" + productZ + "and product A: " + productA)
 
-        # CsSummed = sum(np.concatenate(Cs))
-        # E = E[0]
-        # E, Cs = Tools().interpolate(E, CsSummed)
-        E, Cs = zip(*(Tools().interpolate(x=E_i, y=Cs_i) for E_i, Cs_i in zip(E, Cs)))
+        CsSummed = np.sum(Cs, axis=0)
+        E = E[0]
+        E, Cs = Tools().interpolate(E, CsSummed)
+        print(E)
+        print(Cs)
 
         return E, Cs
     
 
 
 
-    def tendlData(self, productZ: str, productA: str, isomerLevel: str | None = None, Elimit: float | None = None) -> tuple[list[NDArray], list[NDArray]]:
+    def tendlData(self, productZ: str, productA: str, isomerLevel: str | None = None, Elimit: float | None = None) -> tuple[NDArray, NDArray]:
         """
         Retrieve and interpolate TENDL nuclear data for a specified product isotope.
 
@@ -179,16 +180,14 @@ class Tendl:
         if len(E) == 0 or len(Cs) == 0:
             raise Exception("TENDL: No data found for target: " + targetFoil + " for productZ" + productZ + "and product A: " + productA)
         
-        # CsSummed = sum(Cs)
-        # E = E[0]
-        # E, Cs = Tools().interpolate(x=E, y=CsSummed, xlimit=Elimit)
+        CsSummed = np.sum(Cs, axis=0)
+        E = E[0]
+        E, Cs = Tools().interpolate(x=E, y=CsSummed, xlimit=Elimit)
         
         # x, y, xlimit=None, zeroPadding=False
         # print(Elimit)
 
-        E, Cs = zip(*(Tools().interpolate(x=E_i, y=Cs_i, xlimit=Elimit) for E_i, Cs_i in zip(E, Cs)))
-
-        return list(E), list(Cs)
+        return E, Cs
     
     def plotTendl23(self, productZ: str, productA: str, isomerLevel: str | None = None) -> None:  # , feeding = None, branchingRatio = None, parentIsomerLevel = None):
         """
@@ -672,3 +671,16 @@ class Tools:
         return x, y
 
 
+# if __name__ == "__main__":
+#     # Example usage
+#     target = {'Ag107': 0.5, 'Ag109': 0.5}
+#     beamParticle = 'proton'
+#     tendl = Tendl(target, beamParticle)
+    
+#     # Example of retrieving and plotting data
+#     tendl.plotTendl23Unique('39', '92')
+#     plt.xlabel('Energy (MeV)')
+#     plt.ylabel('Cross-section (mb)')
+#     plt.title('TENDL-2023 Cross-section Data')
+#     plt.legend()
+#     plt.show()
