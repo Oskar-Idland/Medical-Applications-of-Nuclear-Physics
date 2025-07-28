@@ -510,7 +510,8 @@ class SpectrumAnalysis:
         plt.tight_layout()
         
         if save_fig:
-            path = fig_path / f'{self.spec_filename.stem}_activity_analysis'
+            path = fig_path / 'activity_analysis' / '{self.spec_filename.stem}'
+            path.parent.mkdir(parents=True, exist_ok=True)
             plt.savefig(path.with_suffix('.pdf'))
             plt.savefig(path.with_suffix('.png'))
         plt.show()
