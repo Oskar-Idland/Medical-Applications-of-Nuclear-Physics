@@ -1,8 +1,8 @@
-import numpy as np
 import requests
+import numpy as np
 import matplotlib.pyplot as plt
-from numpy.typing import NDArray, ArrayLike
 from numpy import float64, int64
+from numpy.typing import NDArray, ArrayLike
 from scipy.interpolate import splev, splrep
 
 
