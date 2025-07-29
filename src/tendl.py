@@ -27,20 +27,26 @@ class Tendl:
     -------
     `__init__(target: dict[str, float], beamParticle: str) -> None`:
         Initialize the Tendl object with target composition and beam particle.
-    `tendl_data(productZ: str, productA: str, isomerLevel: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]`:
+    `tendl_data(productZ: str, productA: str, isomer_level: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]`:
         Retrieve and interpolate TENDL cross-section data for a given isotope, with optional isomer level and energy limit, across all targets.
-    `plot_tendl23_unique(productZ: str, productA: str, Elimit: float | None = None, isomerLevel: str | None = None, color: str = 'blue', lineStyle: str = '--', label: str = 'TENDL-2023') -> None`:
+    `plot_tendl23_unique(productZ: str, productA: str, Elimit: float | None = None, isomer_level: str | None = None, color: str = 'blue', lineStyle: str = '--', label: str = 'TENDL-2023') -> None`:
         Retrieve and plot TENDL-2023 cross-section data for a given isotope, with options for isomer level, energy limit, and plot style.
-    `plot_data_with_multiple_feeding(productZ: str, productA: str, isomerLevel: str, betaPlusDecayChain: dict[str, tuple[str, float, str]] | None = None, betaMinusDecayChain: dict[str, tuple[str, float, str]] | None = None, isomerDecayChain: dict[str, tuple[float, str]] | None = None) -> None`:
+    `plot_data_with_multiple_feeding(productZ: str, productA: str, isomer_level: str, betaPlusDecayChain: dict[str, tuple[str, float, str]] | None = None, betaMinusDecayChain: dict[str, tuple[str, float, str]] | None = None, isomerDecayChain: dict[str, tuple[float, str]] | None = None) -> None`:
         Plot cross-section data for an isotope, including summed contributions from beta and isomeric decay chains
-    `_retrieve_tendl_data(productZ: str, productA: str, isomerLevel: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]`:
+    `_retrieve_tendl_data(productZ: str, productA: str, isomer_level: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]`:
         Retrieve and interpolate TENDL cross-section data for a given isotope.
     `_get_weighted_cs(chain, productZ, productA, is_isomer=False) -> list[ArrayLike]`:
         Calculate weighted cross-sections for decay chains.
-    `_tendl_url(targetFoil: str, target: str, product: str, fileEnding: str, beam_type: str | None = None) -> str`:
+    `_tendl_url(target_foil: str, target: str, product: str, file_ending: str, beam_type: str | None = None) -> str`:
         Construct the URL for accessing TENDL nuclear data files based on the specified parameters.
     """
     
+    # Class constants
+    TENDL_HEADER_LINES = 27                # Number of header lines to skip in TENDL files
+    ISOTOPE_ID_LENGTH = 3                  # Required length for isotope identifiers
+    TWO_DIGIT_ISOTOPE_LENGTH = 2           # Length threshold for adding leading zero
+    
+    # Type hints for instance attributes
     target: dict[str, float]
     beamParticle: str
     
@@ -71,7 +77,7 @@ class Tendl:
         self,
         productZ: str,
         productA: str,
-        isomerLevel: str | None = None,
+        isomer_level: str | None = None,
         Elimit: float | None = None
     ) -> tuple[ArrayLike, ArrayLike]:
         """
@@ -83,7 +89,7 @@ class Tendl:
             Atomic number (Z) of the product isotope as a string.
         productA : str
             Mass number (A) of the product isotope as a string.
-        isomerLevel : str or None, optional
+        isomer_level : str or None, optional
             Isomeric state of the product isotope (e.g., 'm1', 'm2'). If None, ground state is assumed.
         Elimit : float or None, optional
             Upper energy limit for the data interpolation. If None, no energy limit is applied.
@@ -100,14 +106,14 @@ class Tendl:
         Exception
             If no data is found for the specified target and product isotope combination.
         """
-        return self._retrieve_tendl_data(productZ, productA, isomerLevel, Elimit)
+        return self._retrieve_tendl_data(productZ, productA, isomer_level, Elimit)
 
     def plot_tendl23_unique(
         self,
         productZ: str,
         productA: str,
         Elimit: float | None = None,
-        isomerLevel: str | None = None,
+        isomer_level: str | None = None,
         color: str = 'blue',
         lineStyle: str = '--',
         label: str = 'TENDL-2023'
@@ -123,7 +129,7 @@ class Tendl:
             The mass number (A) of the product nucleus as a string.
         Elimit : float or None, optional
             The upper energy limit for the data to be plotted. If None, all available energies are used.
-        isomerLevel : str or None, optional
+        isomer_level : str or None, optional
             The isomeric level of the product nucleus. If None, the ground state is assumed.
         color : str, default='blue'
             The color of the plot line.
@@ -143,7 +149,7 @@ class Tendl:
             If the TENDL data cannot be retrieved (e.g., due to lack of internet connection), an error message is printed.
         """
         try:
-            E, Cs = self.tendl_data(productZ, productA, isomerLevel, Elimit)
+            E, Cs = self.tendl_data(productZ, productA, isomer_level, Elimit)
             plt.plot(E, Cs, label=label, linestyle=lineStyle, color=color)
         except Exception as e:
             print(f"Unable to retrieve TENDL data: {e}")
@@ -152,7 +158,7 @@ class Tendl:
         self,
         productZ: str,
         productA: str,
-        isomerLevel: str,
+        isomer_level: str,
         betaPlusDecayChain: dict[str, tuple[str, float, str]] | None = None,
         betaMinusDecayChain: dict[str, tuple[str, float, str]] | None = None,
         isomerDecayChain: dict[str, tuple[float, str]] | None = None
@@ -166,14 +172,14 @@ class Tendl:
             The atomic number (Z) of the product isotope as a string.
         productA : str
             The mass number (A) of the product isotope as a string.
-        isomerLevel : str
+        isomer_level : str
             The isomeric level of the product isotope as a string.
         betaPlusDecayChain : dict[str, tuple[str, float, str]], optional
-            Dictionary mapping isotope identifiers to tuples containing (productZ, branchingRatio, isomerLevel) for beta-plus decay chains.
+            Dictionary mapping isotope identifiers to tuples containing (productZ, branchingRatio, isomer_level) for beta-plus decay chains.
         betaMinusDecayChain : dict[str, tuple[str, float, str]], optional
-            Dictionary mapping isotope identifiers to tuples containing (productZ, branchingRatio, isomerLevel) for beta-minus decay chains.
+            Dictionary mapping isotope identifiers to tuples containing (productZ, branchingRatio, isomer_level) for beta-minus decay chains.
         isomerDecayChain : dict[str, tuple[float, str]], optional
-            Dictionary mapping isotope identifiers to tuples containing (branchingRatio, isomerLevel) for isomeric transitions.
+            Dictionary mapping isotope identifiers to tuples containing (branchingRatio, isomer_level) for isomeric transitions.
         
         Returns
         -------
@@ -181,7 +187,7 @@ class Tendl:
             This method generates a plot of the total cross-section.
         """
         try:
-            E, Cs = self.tendl_data(productZ, productA, isomerLevel)
+            E, Cs = self.tendl_data(productZ, productA, isomer_level)
 
             # Collect all decay contributions
             all_contributions = []
@@ -203,7 +209,7 @@ class Tendl:
         self,
         productZ: str,
         productA: str,
-        isomerLevel: str | None = None,
+        isomer_level: str | None = None,
         Elimit: float | None = None
     ) -> tuple[ArrayLike, ArrayLike]:
         """
@@ -215,7 +221,7 @@ class Tendl:
             Atomic number (Z) of the product isotope as a string.
         productA : str
             Mass number (A) of the product isotope as a string.
-        isomerLevel : str or None, optional
+        isomer_level : str or None, optional
             Isomeric state of the product isotope (e.g., 'm1', 'm2'). If None, ground state is assumed.
         Elimit : float or None, optional
             Upper energy limit for the data interpolation. If None, no energy limit is applied.
@@ -232,11 +238,12 @@ class Tendl:
         """
         foil = list(self.target.keys())[0][:2]
         product = self._format_product(productZ, productA)
-        fileEnding = self._tendl_file_ending(isomerLevel)
+        file_ending = self._tendl_file_ending(isomer_level)
         E, Cs = [], []
 
+        # Retrieve cross-section data from each target isotope
         for t in self.target:
-            data = self._retrieve_tendl_data_from_url(self._tendl_url(foil, t, product, fileEnding), t)
+            data = self._retrieve_tendl_data_from_url(self._tendl_url(foil, t, product, file_ending), t)
             if all(isinstance(d, np.ndarray) and len(d) > 0 for d in data):
                 E.append(data[0])
                 Cs.append(data[1])
@@ -263,9 +270,9 @@ class Tendl:
         ----------
         chain : dict or None
             If is_isomer is True: dict[str, tuple[float, str]]
-                Dictionary mapping isotope identifiers to (branchingRatio, isomerLevel) for isomeric decay chains.
+                Dictionary mapping isotope identifiers to (branchingRatio, isomer_level) for isomeric decay chains.
             If is_isomer is False: dict[str, tuple[str, float, str]]
-                Dictionary mapping isotope identifiers to (productZ, branchingRatio, isomerLevel) for beta decay chains.
+                Dictionary mapping isotope identifiers to (productZ, branchingRatio, isomer_level) for beta decay chains.
         productZ : str
             Atomic number of the main product isotope.
         productA : str
@@ -284,11 +291,11 @@ class Tendl:
         results = []
         for _, vals in chain.items():
             if is_isomer:
-                branchingRatio, isomerLevel = vals
-                _, Cs_val = self.tendl_data(productZ, productA, isomerLevel)
+                branchingRatio, isomer_level = vals
+                _, Cs_val = self.tendl_data(productZ, productA, isomer_level)
             else:
-                Z, branchingRatio, isomerLevel = vals
-                _, Cs_val = self.tendl_data(Z, productA, isomerLevel)
+                Z, branchingRatio, isomer_level = vals
+                _, Cs_val = self.tendl_data(Z, productA, isomer_level)
             results.append(Cs_val * branchingRatio)
         
         return results
@@ -298,7 +305,7 @@ class Tendl:
         name: str
     ) -> str:
         """
-        Converts a nuclide name from Curie to TENDL format (e.g., 'AG108' → 'Ag108').
+        Converts a nuclide name from Curie to TENDL format (e.g., 'AG108' -> 'Ag108').
         
         Parameters
         ----------
@@ -335,16 +342,16 @@ class Tendl:
         str
             Concatenated zero-padded string.
         """
-        productZ = productZ.zfill(3)  
-        productA = productA.zfill(3)
+        productZ = productZ.zfill(self.ISOTOPE_ID_LENGTH)  
+        productA = productA.zfill(self.ISOTOPE_ID_LENGTH)
         return productZ + productA
 
     def _tendl_url(
         self,
-        targetFoil: str,
+        target_foil: str,
         target: str,
         product: str,
-        fileEnding: str,
+        file_ending: str,
         beam_type: str | None = None
     ) -> str:
         """
@@ -352,13 +359,13 @@ class Tendl:
         
         Parameters
         ----------
-        targetFoil : str
+        target_foil : str
             The foil identifier or name for the target material (e.g., 'Ag').
         target : str
             The target isotope or element symbol (e.g., 'Ag107').
         product : str
             The product identifier or code for the nuclear reaction.
-        fileEnding : str
+        file_ending : str
             The file extension or ending for the desired data file.
         beam_type : str, optional
             The type of beam particle (e.g., 'deuteron', 'proton', 'alpha'). If None, defaults to the beam particle specified in the class.
@@ -374,6 +381,8 @@ class Tendl:
             If the beam particle type is invalid (not 'deuteron', 'proton', or 'alpha').
         """
         beam_type = beam_type or self.beamParticle
+
+        # Map beam particle types to their TENDL directory paths
         beam_map = {
             'deuteron': 'deuteron_file/',
             'proton': 'proton_file/',
@@ -383,23 +392,23 @@ class Tendl:
         if beam_type not in beam_map:
             raise ValueError(f"Invalid beam particle: {beam_type}. Must be deuteron, proton, or alpha.")
         
-        target = self._format_target_length(targetFoil, target)
-        return f"https://tendl.web.psi.ch/tendl_2023/{beam_map[beam_type]}{targetFoil}/{target}/tables/residual/rp{product}{fileEnding}"
+        target = self._format_target_length(target_foil, target)
+        return f"https://tendl.web.psi.ch/tendl_2023/{beam_map[beam_type]}{target_foil}/{target}/tables/residual/rp{product}{file_ending}"
 
     def _format_target_length(
         self,
-        targetFoil: str,
-        targetIsotope: str
+        target_foil: str,
+        target_isotope: str
     ) -> str:
         """
         Format isotope number to three digits by perprending zero if needed.
-        E.g. 'Cu65' → 'Cu065'.
+        E.g. 'Cu65' -> 'Cu065'.
         
         Parameters
         ----------
-        targetFoil : str
+        target_foil : str
             The chemical element symbol (e.g., 'Cu' for copper).
-        targetIsotope : str
+        target_isotope : str
             The full isotope string, consisting of the element symbol followed by the isotope number (e.g., 'Cu65').
         
         Returns
@@ -407,32 +416,32 @@ class Tendl:
         str
             The formatted target string with a three-digit isotope number (e.g., 'Cu065').
         """
-        isotopeNumber = targetIsotope[len(targetFoil):]
-        if len(isotopeNumber) == 2:
+        isotopeNumber = target_isotope[len(target_foil):]
+        if len(isotopeNumber) == self.TWO_DIGIT_ISOTOPE_LENGTH:
             isotopeNumber = '0' + isotopeNumber
-        return targetFoil + isotopeNumber
+        return target_foil + isotopeNumber
 
     def _tendl_file_ending(
         self,
-        isomerLevel: str | None = None
+        isomer_level: str | None = None
     ) -> str:
         """
         Return the TENDL file suffic based on isomer level.
         
-        If `isomerLevel` is None, returns the default '.tot' suffix.
-        Otherwise, returns '.L{isomerLevel}' to specify the isomer state.
+        If `isomer_level` is None, returns the default '.tot' suffix.
+        Otherwise, returns '.L{isomer_level}' to specify the isomer state.
         
         Parameters
         ----------
-        isomerLevel : str or None, optional
-            The isomer level to include in the file ending. If None, the default ending is used.
-        
+        isomer_level : str or None, optional
+            The isomer level to include in the file ending (e.g., '01', '02'). If None, the default ending is used.
+
         Returns
         -------
         str
             The appropriate file ending for the TENDL file.
         """
-        return f".tot" if isomerLevel is None else f".L{isomerLevel}"
+        return f".tot" if isomer_level is None else f".L{isomer_level}"
 
     def _retrieve_tendl_data_from_url(
         self,
@@ -461,12 +470,13 @@ class Tendl:
         If the data cannot be retrieved or parsed, empty numpy arrays are returned.
         """
         try:
-            tendlData = requests.get(url).text.split("\n")[27:]  # skip header lines
+            tendlData = requests.get(url).text.split("\n")[self.TENDL_HEADER_LINES:]  # Skip header lines
             tendlData = np.genfromtxt(tendlData)
             abundance = self.target[target]
             E = tendlData[:, 0]
             Cs = tendlData[:, 1]
 
+            # Scale cross-sections by target isotope abundance
             return E, Cs * abundance
 
         except Exception as e:
@@ -481,18 +491,24 @@ class Tools:
 
     Methods
     -------
-    `interpolate(x: ArrayLike, y: ArrayLike, xlimit: float | None = None, zeroPadding: bool = False) -> tuple[ArrayLike, ArrayLike]`:
+    `interpolate(x: ArrayLike, y: ArrayLike, xlimit: float | None = None, zero_padding: bool = False) -> tuple[ArrayLike, ArrayLike]`:
            Performs B-spline interpolation (degree 5) on input data, with optional padding and x-range limit.
 
-    `zeroPadding(x: ArrayLike, y: ArrayLike) -> tuple[NDArray[float64 | int64], NDArray[float64 | int64]]`:
+    `zero_padding(x: ArrayLike, y: ArrayLike) -> tuple[NDArray[float64 | int64], NDArray[float64 | int64]]`:
         Prepends zeros to `x` and `y` if `x` does not start at 0.
     """
+
+    # Class constants
+    DEFAULT_INTERPOLATION_POINTS = 1000    # Default number of points for interpolation
+    ZERO_PADDING_POINTS = 10               # Number of points to add for zero padding
+    ZERO_PADDING_OFFSET = 0.5              # Offset for zero padding range
+    
     def interpolate(
         self,
         x: ArrayLike,
         y: ArrayLike,
         xlimit: float | None = None,
-        zeroPadding: bool = False
+        zero_padding: bool = False
     ) -> tuple[ArrayLike, ArrayLike]:
         """
         Interpolates input data using a degree-5 B-spline.
@@ -507,7 +523,7 @@ class Tools:
             Input y-values.
         xlimit : float, optional
             Upper limit for the x-axis; if set, output x-values span [1, xlimit] with 1000 points.
-        zeroPadding : bool, default False
+        zero_padding : bool, default False
             If True, prepends zeros to input arrays before interpolation.
         
         Returns
@@ -515,18 +531,18 @@ class Tools:
         tuple[ArrayLike, ArrayLike]
             Interpolated x and y values.
         """
-        if zeroPadding:
-            x, y = self.zeroPadding(x, y)
+        if zero_padding:
+            x, y = self.zero_padding(x, y)
 
         tck = splrep(x, y, s=0, k=5)  # B-spline fit, degree 5, no smoothing
 
         if xlimit:
-            x = np.linspace(1, xlimit, 1000)
+            x = np.linspace(1, xlimit, self.DEFAULT_INTERPOLATION_POINTS)
 
         y = splev(x, tck, der=0)  # Evaluate B-spline at x
         return x, y
 
-    def zeroPadding(
+    def zero_padding(
         self,
         x: ArrayLike,
         y: ArrayLike
@@ -552,24 +568,9 @@ class Tools:
         y = np.asarray(y)
 
         if x[0] != 0:
-            x_pad = np.linspace(0, x[0] - 0.5, 10)
+            x_pad = np.linspace(0, x[0] - self.ZERO_PADDING_OFFSET, self.ZERO_PADDING_POINTS)
             y_pad = np.zeros_like(x_pad)
             x = np.concatenate((x_pad, x))
             y = np.concatenate((y_pad, y))
 
         return x, y
-
-
-# if __name__ == "__main__":
-#     # Example usage
-#     target = {'Ag107': 0.5, 'Ag109': 0.5}
-#     beamParticle = 'proton'
-#     tendl = Tendl(target, beamParticle)
-    
-#     # Example of retrieving and plotting data
-#     tendl.plot_tendl23_unique('39', '92')
-#     plt.xlabel('Energy (MeV)')
-#     plt.ylabel('Cross-section (mb)')
-#     plt.title('TENDL-2023 Cross-section Data')
-#     plt.legend()
-#     plt.show()
