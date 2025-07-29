@@ -25,19 +25,19 @@ class Tendl:
 
     Methods
     -------
-    `__init__(target: dict[str, float], beamParticle: str) -> None`:
+    `__init__`(target: dict[str, float], beamParticle: str) -> None:
         Initialize the Tendl object with target composition and beam particle.
-    `tendl_data(productZ: str, productA: str, isomer_level: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]`:
+    `tendl_data`(productZ: str, productA: str, isomer_level: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]:
         Retrieve and interpolate TENDL cross-section data for a given isotope, with optional isomer level and energy limit, across all targets.
-    `plot_tendl23_unique(productZ: str, productA: str, Elimit: float | None = None, isomer_level: str | None = None, color: str = 'blue', lineStyle: str = '--', label: str = 'TENDL-2023') -> None`:
+    `plot_tendl23_unique`(productZ: str, productA: str, Elimit: float | None = None, isomer_level: str | None = None, color: str = 'blue', lineStyle: str = '--', label: str = 'TENDL-2023') -> None:
         Retrieve and plot TENDL-2023 cross-section data for a given isotope, with options for isomer level, energy limit, and plot style.
-    `plot_data_with_multiple_feeding(productZ: str, productA: str, isomer_level: str, betaPlusDecayChain: dict[str, tuple[str, float, str]] | None = None, betaMinusDecayChain: dict[str, tuple[str, float, str]] | None = None, isomerDecayChain: dict[str, tuple[float, str]] | None = None) -> None`:
+    `plot_data_with_multiple_feeding`(productZ: str, productA: str, isomer_level: str, betaPlusDecayChain: dict[str, tuple[str, float, str]] | None = None, betaMinusDecayChain: dict[str, tuple[str, float, str]] | None = None, isomerDecayChain: dict[str, tuple[float, str]] | None = None) -> None:
         Plot cross-section data for an isotope, including summed contributions from beta and isomeric decay chains
-    `_retrieve_tendl_data(productZ: str, productA: str, isomer_level: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]`:
+    `_retrieve_tendl_data`(productZ: str, productA: str, isomer_level: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]:
         Retrieve and interpolate TENDL cross-section data for a given isotope.
-    `_get_weighted_cs(chain, productZ, productA, is_isomer=False) -> list[ArrayLike]`:
+    `_get_weighted_cs`(chain, productZ, productA, is_isomer=False) -> list[ArrayLike]:
         Calculate weighted cross-sections for decay chains.
-    `_tendl_url(target_foil: str, target: str, product: str, file_ending: str, beam_type: str | None = None) -> str`:
+    `_tendl_url`(target_foil: str, target: str, product: str, file_ending: str, beam_type: str | None = None) -> str:
         Construct the URL for accessing TENDL nuclear data files based on the specified parameters.
     """
     
@@ -466,10 +466,10 @@ class Tools:
 
     Methods
     -------
-    `interpolate(x: ArrayLike, y: ArrayLike, xlimit: float | None = None, zero_padding: bool = False) -> tuple[ArrayLike, ArrayLike]`:
+    `interpolate`(x: ArrayLike, y: ArrayLike, xlimit: float | None = None, zero_padding: bool = False) -> tuple[ArrayLike, ArrayLike]:
            Performs B-spline interpolation (degree 5) on input data, with optional padding and x-range limit.
 
-    `zero_padding(x: ArrayLike, y: ArrayLike) -> tuple[NDArray[float64 | int64], NDArray[float64 | int64]]`:
+    `zero_padding`(x: ArrayLike, y: ArrayLike) -> tuple[NDArray[float64 | int64], NDArray[float64 | int64]]:
         Prepends zeros to `x` and `y` if `x` does not start at 0.
     """
 

@@ -14,6 +14,7 @@ root_path = Path.cwd().parent
 spec_filename   = root_path / 'spectra'
 fig_path        = root_path / 'figs'
 
+
 @dataclass
 class GammaPeak:
     """
@@ -39,7 +40,7 @@ class GammaPeak:
         
     Methods
     -------
-    add_measurement(time: float, activity: float, uncertainty: float) -> None
+    `add_measurement`(time: float, activity: float, uncertainty: float) -> None:
         Add a new measurement for this energy peak.
     
     """
@@ -48,7 +49,15 @@ class GammaPeak:
     activities: list[float] = field(default_factory=list)
     uncertainties: list[float] = field(default_factory=list)
     
-    def add_measurement(self, time: float, activity: float, uncertainty: float) -> None:
+    def __post_init__(self):
+        """Validate energy value after initialization."""
+        if self.energy <= 0:
+            raise ValueError(f"Energy must be positive, got {self.energy}")
+        
+    def add_measurement(self,
+                        time: float,
+                        activity: float,
+                        uncertainty: float) -> None:
         """
         Add a new measurement for this energy peak.
         
@@ -105,9 +114,9 @@ class IsotopeResults:
 
     Methods
     -------
-    get_peak(energy: float, tolerance: float = 0.5) -> GammaPeak | None
+    `get_peak`(energy: float, tolerance: float = 0.5) -> GammaPeak | None:
         Finds a `GammaPeak` object for a given energy within a tolerance.
-    add_or_update_peak(energy: float, time: float, activity: float, uncertainty: float, tolerance: float = 0.5) -> None
+    `add_or_update_peak`(energy: float, time: float, activity: float, uncertainty: float, tolerance: float = 0.5) -> None:
         Adds a measurement to an existing peak or creates a new one.
     """
     isotope: str
@@ -115,7 +124,9 @@ class IsotopeResults:
     A0: UFloat = ufloat(0, 1e-16)
     cov: np.ndarray | None = None
     
-    def _get_peak(self, energy: float, tolerance: float = 0.5) -> GammaPeak | None:
+    def _get_peak(self,
+                  energy: float,
+                  tolerance: float = 0.5) -> GammaPeak | None:
         """
         Find a peak with the given energy within the specified tolerance.
         Returns None if no matching peak is found.
@@ -125,8 +136,12 @@ class IsotopeResults:
                 return peak
         return None
     
-    def add_or_update_peak(self, energy: float, time: float, activity: float, 
-                           uncertainty: float, tolerance: float = 0.5) -> None:
+    def add_or_update_peak(self,
+                           energy: float,
+                           time: float,
+                           activity: float, 
+                           uncertainty: float,
+                           tolerance: float = 0.5) -> None:
         """
         Adds a measurement to an existing peak or creates a new one.
 
@@ -155,9 +170,9 @@ class IsotopeResults:
             peak = GammaPeak(energy=energy)
             self.peaks.append(peak)
         
-        # Add the measurement to the peak
         peak.add_measurement(time, activity, uncertainty)
-    
+
+
 class SpectrumAnalysis:
     """
     A class for analyzing gamma-ray spectra from irradiated samples.
@@ -243,7 +258,9 @@ class SpectrumAnalysis:
 
 
 
-    def __init__(self, spec_filename: str | Path, Δt_d: float, calibration_source: Path | ci.Calibration = root_path / 'calibration.json'):
+    def __init__(self,
+                 spec_filename: str | Path, Δt_d: float,
+                 calibration_source: Path | ci.Calibration = root_path / 'calibration.json') -> None:
         # --- Input Validation ---
         if isinstance(spec_filename, str):
             self.spec_filename = Path(spec_filename)
@@ -319,12 +336,19 @@ class SpectrumAnalysis:
             spectrum.fit_config = self.fit_config
             
             spectrums.append(spectrum)
-            real_times.append(spectrum.peaks['real_time'].array[0])  # All peaks have the same real time
-            live_times.append(spectrum.peaks['live_time'].array[0])  # All peaks have the same live time
-            start_times.append(pd.Timestamp(spectrum.peaks['start_time'].array[0]))  # All peaks have the same start time
+
+            if spectrum.peaks is None:
+                print(f"Warning: No peaks found in spectrum {spec_path}. Skipping.")
+                continue
+
+            peaks = spectrum.peaks
+            
+            real_times.append(peaks['real_time'].array[0])  # All peaks have the same real time
+            live_times.append(peaks['live_time'].array[0])  # All peaks have the same live time
+            start_times.append(pd.Timestamp(peaks['start_time'].array[0]))  # All peaks have the same start time
             time_deltas.append(pd.Timedelta(start_times[-1] - start_times[0]).total_seconds())
             # Add energies to the set
-            isotope_energy.update((zip(spectrum.peaks['isotope'].array, spectrum.peaks['energy'].array)))
+            isotope_energy.update((zip(peaks['isotope'].array, peaks['energy'].array)))
             
         real_times  = np.array(real_times)
         live_times  = np.array(live_times)
@@ -437,12 +461,23 @@ class SpectrumAnalysis:
     def _plot_isotope_data(self, ax, iso_results):
         """Plot data for a specific isotope."""
         # Check iso_results for possible issues
+        # If no peaks are found, display a message and return without plotting
+        if not iso_results.peaks:
+            print(f"No peaks found for {iso_results.isotope}")
+            return
         
-        # TODO: Evalute using differnt colors
+        # If A0 is not valid, print a warning
+        if iso_results.A0.nominal_value <= 0:
+            print(f"Warning: Invalid A0 value for {iso_results.isotope}: {iso_results.A0}")
+
+        # If some of the found peaks have no measurements, warn the user
+        excluded_peaks = [peak for peak in iso_results.peaks if peak.n_measurements == 0]
+        if excluded_peaks:
+            print(f"Warning: Found {len(excluded_peaks)} peaks excluded from analysis for {iso_results.isotope} (likely below SNR threshold)")
+
         # Use a different color for each energy peak
-        # colors = plt.cm.tab10(np.linspace(0, 1, len(iso_results.peaks)))
-        # colors = plt.cm.brg(np.linspace(0, 1, len(iso_results.peaks)))
-        # colors = plt.cm.Set1(np.linspace(0, 1, len(iso_results.peaks)))
+        cmap = plt.get_cmap('tab10')
+        colors = cmap(np.linspace(0, 1, len(iso_results.peaks)))
         
         # Plot each energy peak with its own color
         for i, peak in enumerate(iso_results.peaks):
@@ -454,7 +489,7 @@ class SpectrumAnalysis:
                 yerr=peak.uncertainties, 
                 fmt='o:', 
                 capsize=5,
-                # color=colors[i],
+                color=colors[i],
                 label=label,
                 alpha=1-.2*i,  # Decrease alpha for each peak
             )
@@ -518,7 +553,7 @@ class SpectrumAnalysis:
     
     def plot_A0_analytical(self, save_fig: bool = True):
         """Plot the analytical A0 values for each isotope and peak."""
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
+        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
 
         # --- Plot for 108Ag ---
         for peak in self.Ag108.peaks:
