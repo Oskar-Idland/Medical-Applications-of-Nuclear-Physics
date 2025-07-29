@@ -35,6 +35,8 @@ class Tendl:
         Retrieve and interpolate TENDL cross-section data for a given isotope, with optional isomer level and energy limit, across all targets.
     `plotTendl23Unique(productZ: str, productA: str, Elimit: float | None = None, isomerLevel: str | None = None, color: str = 'blue', lineStyle: str = '--', label: str = 'TENDL-2023') -> None`:
         Retrieve and plot TENDL-2023 cross-section data for a given isotope, with options for isomer level, energy limit, and plot style.
+    `_get_weighted_cs(chain, productZ, productA, is_isomer=False) -> list[ArrayLike]`:
+        Calculate weighted cross-sections for decay chains.
     `plotdataWithMultipleFeeding(productZ: str, productA: str, isomerLevel: str, betaPlusDecayChain: dict[str, tuple[str, float, str]] | None = None, betaMinusDecayChain: dict[str, tuple[str, float, str]] | None = None, isomerDecayChain: dict[str, tuple[float, str]] | None = None) -> None`:
         Plot cross-section data for an isotope, including summed contributions from beta and isomeric decay chains.
     `_tendlUrl(targetFoil: str, target: str, product: str, fileEnding: str, beam_type: str | None = None) -> str`:
@@ -218,6 +220,50 @@ class Tendl:
             plt.plot(E, Cs, label=label, linestyle=lineStyle, color=color)
         except Exception as e:
             print(f"Unable to retrieve TENDL data: {e}")
+    
+    def _get_weighted_cs(
+        self,
+        chain: dict[str, tuple] | dict[str, tuple] | None,
+        productZ: str,
+        productA: str,
+        is_isomer: bool = False
+    ) -> list[ArrayLike]:
+        """
+        Calculate weighted cross-sections for decay chains.
+
+        Parameters
+        ----------
+        chain : dict or None
+            If is_isomer is True: dict[str, tuple[float, str]]
+                Dictionary mapping isotope identifiers to (branchingRatio, isomerLevel) for isomeric decay chains.
+            If is_isomer is False: dict[str, tuple[str, float, str]]
+                Dictionary mapping isotope identifiers to (productZ, branchingRatio, isomerLevel) for beta decay chains.
+        productZ : str
+            Atomic number of the main product isotope.
+        productA : str
+            Mass number of the product isotope.
+        is_isomer : bool, default False
+            Whether this is an isomer decay chain.
+
+        Returns
+        -------
+        list[ArrayLike]
+            List of weighted cross-section arrays.
+        """
+        if not chain:
+            return []
+        
+        results = []
+        for _, vals in chain.items():
+            if is_isomer:
+                branchingRatio, isomerLevel = vals
+                _, Cs_val = self.tendlData(productZ, productA, isomerLevel)
+            else:
+                Z, branchingRatio, isomerLevel = vals
+                _, Cs_val = self.tendlData(Z, productA, isomerLevel)
+            results.append(Cs_val * branchingRatio)
+        
+        return results
 
     def plotdataWithMultipleFeeding(
         self,
@@ -254,27 +300,16 @@ class Tendl:
         try:
             E, Cs = self.tendlData(productZ, productA, isomerLevel)
 
-            def get_weighted_cs(chain, is_isomer=False):
-                if not chain:
-                    return []
-                results = []
-                for key, vals in chain.items():
-                    if is_isomer:
-                        branchingRatio, isomerLevel = vals
-                        _, Cs_val = self.tendlData(productZ, productA, isomerLevel)
-                    else:
-                        Z, branchingRatio, isomerLevel = vals
-                        _, Cs_val = self.tendlData(Z, productA, isomerLevel)
-                    results.append(Cs_val * branchingRatio)
-                return results
-            
+            # Collect all decay contributions
+            all_contributions = []
+            all_contributions.extend(self._get_weighted_cs(betaPlusDecayChain, productZ, productA))
+            all_contributions.extend(self._get_weighted_cs(betaMinusDecayChain, productZ, productA))
+            all_contributions.extend(self._get_weighted_cs(isomerDecayChain, productZ, productA, is_isomer=True))
+
+            # Sum contributions
             Cs_tot = Cs
-            if betaPlusDecayChain:
-                Cs_tot += np.sum(get_weighted_cs(betaPlusDecayChain), axis=0)
-            if betaMinusDecayChain:
-                Cs_tot += np.sum(get_weighted_cs(betaMinusDecayChain), axis=0)
-            if isomerDecayChain:
-                Cs_tot += np.sum(get_weighted_cs(isomerDecayChain, is_isomer=True), axis=0)
+            if all_contributions:
+                Cs_tot += np.sum(all_contributions, axis=0)
 
             plt.plot(E, Cs_tot, label='TENDL-2023', linestyle='--', color='blue')
 
