@@ -46,7 +46,6 @@ class Tendl:
     ISOTOPE_ID_LENGTH = 3                  # Required length for isotope identifiers
     TWO_DIGIT_ISOTOPE_LENGTH = 2           # Length threshold for adding leading zero
     
-    # Type hints for instance attributes
     target: dict[str, float]
     beamParticle: str
     

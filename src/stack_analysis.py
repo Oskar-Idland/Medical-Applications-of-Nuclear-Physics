@@ -9,10 +9,54 @@ from scipy.constants import Avogadro
 from matplotlib.figure import Figure
 
 class StackAnalysis:
+    """
+    A class for analyzing irradiated target stacks to determine optimal counting times for gamma-ray spectroscopy.
+
+    This class handles:
+    - Calculation of isotope activities from cross-sections and irradiation parameters.
+    - Determination of counting times required to achieve statistical precision.
+    - Analysis of gamma-ray lines with consideration for detector efficiency and decay timing.
+    - Visualization of counting time dependencies on delay times.
+
+    Attributes
+    ----------
+    stack : ci.Stack
+        The stack object containing target materials and their areal densities.
+    efficiency_func : Callable
+        Function that returns detector efficiency as a function of gamma-ray energy (MeV).
+    proton_flux : float
+        Incident proton flux in protons/cm²/s.
+    irradiation_time : float
+        Duration of irradiation in seconds.
+
+    Methods
+    -------
+    `__init__(stack: ci.Stack, effciency_func: Callable, proton_flux: float = 6.24e11, irradiation_time: float = 60*60) -> None`:
+        Initialize the StackAnalysis object with stack configuration and irradiation parameters.
+    `analyze(products: dict[str, pd.DataFrame], t_d: NDArray[float64|int64] = np.arange(0, 60*60), t_max: float = 60*60, min_intensity: float = 10.0, dE_511: float = 0.1, silent: bool = True) -> pd.DataFrame`:
+        Analyze the stack to calculate counting times for gamma lines from each foil across specified delay times.
+    `plot(counting_times: pd.DataFrame, target: str | None = None, n_gammas: int = 5, title: str = '') -> Figure`:
+        Generate plots of counting times versus delay times for the most favorable gamma lines.
+    `_A0(σ: float | NDArray[float64], N_T: int | NDArray[int64], Φ: float | NDArray[float64], t_irr: float | NDArray[float64], λ: float | NDArray[float64]) -> NDArray[float64]`:
+        Calculate initial activity from nuclear reaction parameters and decay constants.
+    `_counting_time(A0: float | NDArray[float64], I_γ: float | NDArray[float64], t_d: float | NDArray[float64|int64], ε_γ: float | NDArray[float64], λ: float | NDArray[float64], N_c: int | NDArray[int64] = 10_000) -> float | NDArray[float64]`:
+        Determine counting time required to achieve specified count statistics as function of delay time.
+    """
+
+    # Unit conversion constants
+    MILLIBARN_TO_CM2 = 1e-27    # mb -> cm^2
+    GRAM_TO_KG = 1e-3           # g -> kg
+    PERCENT_TO_FRACTION = 0.01  # % -> fraction
+
+    stack: ci.Stack
+    efficiency_func: Callable
+    proton_flux: float
+    irradiation_time: float
+
     def __init__(self,
-                 stack: ci.Stack, 
-                 eficiency_func: Callable,  
-                 proton_flux: float = 6.24e11, 
+                 stack: ci.Stack,
+                 efficiency_func: Callable,
+                 proton_flux: float = 6.24e11,
                  irradiation_time: float = 60*60):
         """
         Initializes the StackAnalysis class.
@@ -27,7 +71,7 @@ class StackAnalysis:
             The irradiation time in seconds. Defaults to 60*60 (1 hour).
         """
         self.stack = stack
-        self.efficiency_func = eficiency_func  
+        self.efficiency_func = efficiency_func
         self.proton_flux = proton_flux
         self.irradiation_time = irradiation_time
     
@@ -93,8 +137,8 @@ class StackAnalysis:
                     print(f"Element {target} not found in products: {products.keys()}. Skipping.")
                     
                 continue
-            
-            A = foil['areal_density'] * 1E-3  # g/cm^2 
+
+            A = foil['areal_density'] * self.GRAM_TO_KG  # g/cm^2
             for _, isotope in products[target].iterrows():
                 iso_name = isotope['Name']
                 E   = isotope['E']
@@ -107,17 +151,17 @@ class StackAnalysis:
                 M   = iso.mass
                 N_T = A * Avogadro / M  # atoms/cm^2
                 idx = np.abs(E - foil.mu_E).argmin()  # Find the index of the closest energy to the beam energy 
-                σ   = Cs[idx] * 1E-27  # Convert mb to cm^2 
+                σ   = Cs[idx] * self.MILLIBARN_TO_CM2 
                 
-                A0 = self._A0(σ, N_T, self.proton_flux, self.irradiation_time, λ)  # Activity in Bq 
+                A0 = self._A0(σ, N_T, self.proton_flux, self.irradiation_time, λ)  # Bq 
                 
                 for _, gamma in iso.gammas(I_lim = min_intensity, dE_511 = dE_511).iterrows():
                     E_γ = gamma['energy']  # MeV
-                    I_γ = gamma['intensity']  / 100 
-                    ε_γ = self.efficiency_func(E_γ)  
-                    
-                    t_c = self._counting_time(A0, I_γ, t_d, ε_γ, λ)  # Counting time in seconds 
-                    
+                    I_γ = gamma['intensity'] * self.PERCENT_TO_FRACTION  # Convert to fraction
+                    ε_γ = self.efficiency_func(E_γ)
+
+                    t_c = self._counting_time(A0, I_γ, t_d, ε_γ, λ)  # s
+
                     t_c = np.atleast_1d(t_c)
                     if np.isnan(t_c).any():
                         if not silent:
@@ -193,21 +237,21 @@ class StackAnalysis:
             N_T:   int   | NDArray[int64],
             Φ:     float | NDArray[float64],
             t_irr: float | NDArray[float64], 
-            λ:     float | NDArray[float64]) -> NDArray[float64]:
+            λ:     float | NDArray[float64]) -> float | NDArray[float64]:
         """
         Calculates the activity A0 from the cross-section σ, target atom density N_T, flux Φ, irradiation time t_irr, and decay constant λ. `t_irr` and `λ` can be either a float or a numpy array. If both are arrays, they must have the same shape.
         
         Parameters
         ----------
-        σ: float
+        σ: float | NDArray[float64]
             Cross-section in barns (b).
-        N_T: int
+        N_T: int | NDArray[int64]
             Target atom density in atoms/cm^2.
-        Φ: float
+        Φ: float | NDArray[float64]
             Flux in protons/cm^2/s.
-        t_irr: float | int | NDArray[float64 | int64]
+        t_irr: float | NDArray[float64]
             Irradiation time in seconds.
-        λ: float | NDArray[float]
+        λ: float | NDArray[float64]
             Decay constant in decays/s.
             
         Returns
@@ -215,8 +259,8 @@ class StackAnalysis:
         float | NDArray[float64]
             Activity A0 in Bq.
         """
-        if isinstance(t_irr, np.ndarray) and isinstance(λ, np.ndarray):
-            assert t_irr.shape == λ.shape, "If both t_irr and λ are numpy arrays, they must have the same shape."
+        if isinstance(t_irr, np.ndarray) and isinstance(λ, np.ndarray) and t_irr.shape != λ.shape:
+            raise ValueError(f"Shape mismatch: t_irr{t_irr.shape} vs λ{λ.shape}")
         
         A0 = σ * N_T * Φ * (1 - np.exp(-λ * t_irr))
         
@@ -234,22 +278,22 @@ class StackAnalysis:
         
         Parameters
         ----------
-        A0: float | int | NDArray[float | int64]
+        A0: float | NDArray[float]
             Initial activity in Bq.
-        I_γ: float | int | NDArray[float | int64]
+        I_γ: float | NDArray[float]
             Intensity of the gamma line.
         t_d: np | NDArray[np]
             Delay time in seconds.
-        ε_γ: float | int | NDArray[float | int64]
+        ε_γ: float | NDArray[float]
             Energy of the gamma line in MeV.
-        λ: float | int | NDArray[float | int64]
+        λ: float | NDArray[float]
             Decay constant in decays/s.
         N_c: int | NDArray[int], optional
             Number of counts to achieve. Defaults to 10'000.
             
         Returns
         -------
-        float | int | NDArray[float | int64]
+        float | NDArray[float]
             Counting time in seconds.
         """
         t_c =  np.log(1 - (N_c*λ)/(A0 * I_γ * ε_γ * np.exp(-λ * t_d))) / -λ
