@@ -10,21 +10,59 @@ from scipy.interpolate import splev, splrep
 
 class Tendl:
     """
-    ....
+    A class for retrieving, processing, and plotting nuclear reaction cross-section data from the TENDL-2023 database for various target isotopes and beam particles.
     
-    Attributes
-    ----------
-        ....
-    
-    Methods
-    -------
-    ....
+    This class provides methods to:
+    - Convert nuclide names to TENDL format.
+    - Retrieve and interpolate cross-section data for specified nuclear reactions and isomeric states.
+    - Plot cross-section data, including contributions from decay chains.
+    - Construct URLs for accessing TENDL data files based on target, product, and beam particle.
+    - Handle data retrieval and formatting for different nuclear reactions.
+
+    Attributes:
+    -----------
+        Dictionary representing the target composition, where keys are element or isotope names (in TENDL format) and values are their respective abundances or fractions.
+        The name of the incident beam particle (e.g., 'deuteron', 'proton', 'alpha').
+
+    Methods:
+    --------
+    __init__(target: dict[str, float], beamParticle: str) -> None
+        Initialize the Tendl object with target composition and beam particle.
+    _name_trans_curie_tendl(name: str) -> str
+        Convert a nuclide name from Curie notation (e.g., 'AG108') to TENDL format (e.g., 'Ag108').
+    _tendlDeuteronData(productZ: str, productA: str, isomerLevel: str | None = None) -> tuple[ArrayLike, ArrayLike]
+        Fetch and interpolate TENDL deuteron cross-section data for a given isotope and optional isomer level.
+    tendlData(productZ: str, productA: str, isomerLevel: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]
+    plotTendl23(productZ: str, productA: str, isomerLevel: str | None = None) -> None
+        Plot TENDL-2023 cross-section data for a given isotope, with optional isomer level.
+    plotTendl23Unique(productZ: str, productA: str, Elimit: float | None = None, isomerLevel: str | None = None, color: str = 'blue', lineStyle: str = '--', label: str = 'TENDL-2023') -> None
+        Retrieve and plot TENDL-2023 cross-section data for a given isotope, with options for isomer level, energy limit, and plot style.
+    plotdataWithMultipleFeeding(productZ: str, productA: str, isomerLevel: str, betaPlusDecayChain: dict[str, tuple[str, float, str]] | None = None, betaMinusDecayChain: dict[str, tuple[str, float, str]] | None = None, isomerDecayChain: dict[str, tuple[float, str]] | None = None) -> None
+        Plot cross-section data for an isotope, including summed contributions from beta and isomeric decay chains.
+    _product(productZ: str, productA: str) -> str
+        Format productZ and productA as zero-padded strings and concatenate them.
+    _tendDeuteronlUrl(targetFoil: str, target: str, product: str, fileEnding: str) -> str
+        Construct a URL for accessing deuteron-induced nuclear reaction data from the TENDL database.
+    _tendlUrl(targetFoil: str, target: str, product: str, fileEnding: str) -> str
+        Construct the URL for accessing TENDL nuclear data files based on the specified parameters.
+    _formatTargetLength(targetFoil: str, targetIsotope: str) -> str
+        Format isotope number to three digits by prepending zero if needed.
+    _tendlFileEnding(isomerLevel: str | None = None) -> str
+        Return the TENDL file suffix based on isomer level.
+    _retrieveTendlDataFromUrl(url: str, target: str) -> tuple[NDArray[float64], NDArray[float64]]
+        Download TENDL nuclear data for a target and return energy and scaled cross-section arrays.
+    _retrieveDataFromUrlWithNumpy(url: str) -> tuple[NDArray[float64], NDArray[float64]]
+        Fetch numerical data from a URL and return first two columns as arrays: energy, cross-section.
     """
     
     target: dict[str, float]
     beamParticle: str
     
-    def __init__(self, target: dict[str, float], beamParticle: str) -> None:
+    def __init__(
+        self,
+        target: dict[str, float],
+        beamParticle: str
+    ) -> None:
         """
         Initialize the object with target composition and beam particle.
         
@@ -100,7 +138,7 @@ class Tendl:
         E, Cs = [], []
 
         for t in self.target:
-            data = self._retrieveTendlDataFromUrl(self._tendDeuteronlUrl(foil, t, product, fileEnding), t)
+            data = self._retrieveTendlDataFromUrl(self._tendlUrl(foil, t, product, fileEnding, self.beamParticle), t)
             if all(isinstance(d, np.ndarray) and len(d) > 0 for d in data):
                 E.append(data[0])
                 Cs.append(data[1])
@@ -324,43 +362,13 @@ class Tendl:
         productA = productA.zfill(3)
         return productZ + productA
 
-    def _tendDeuteronlUrl(
-        self,
-        targetFoil: str,
-        target: str,
-        product: str,
-        fileEnding: str
-    ) -> str:
-        """
-        Constructs a URL for accessing deuteron-induced nuclear reaction data from the TENDL database.
-        Pads `target` isotope with '0' if shorter than 5 characters.
-        
-        Parameters
-        ----------
-        targetFoil : str
-            The foil name name (e.g., 'Ag').
-        target : str
-            Target isotope ID (e.g., 'Ag107').
-        product : str
-            The product identifier for the nuclear reaction.
-        fileEnding : str
-            File extension or ending for the URL (e.g., '.txt').
-        
-        Returns
-        -------
-        str
-            The constructed URL string pointing to the desired TENDL deuteron file.
-        """
-        if len(target) < 5:
-            target = target[:2] + '0' + target[2:]
-        return f"https://tendl.web.psi.ch/tendl_2023/deuteron_file/{targetFoil}/{target}/tables/residual/rp{product}{fileEnding}"   
-
     def _tendlUrl(
         self,
         targetFoil: str,
         target: str,
         product: str,
-        fileEnding: str
+        fileEnding: str,
+        beam_type: str | None = None
     ) -> str:
         """
         Constructs the URL for accessing TENDL nuclear data files based on the specified parameters.
@@ -375,6 +383,8 @@ class Tendl:
             The product identifier or code for the nuclear reaction.
         fileEnding : str
             The file extension or ending for the desired data file.
+        beam_type : str, optional
+            The type of beam particle (e.g., 'deuteron', 'proton', 'alpha'). If None, defaults to the beam particle specified in the class.
         
         Returns
         -------
@@ -386,22 +396,18 @@ class Tendl:
         Exception
             If the beam particle type is invalid (not 'deuteron', 'proton', or 'alpha').
         """
+        beam_type = beam_type or self.beamParticle
         beam_map = {
             'deuteron': 'deuteron_file/',
             'proton': 'proton_file/',
             'alpha': 'alpha_file/'
         }
-        try:
-            beam_file = beam_map[self.beamParticle]
-        except KeyError:
-            raise Exception("Invalid beam particle: " + self.beamParticle + ". Must be deuteron, proton, or alpha.")
+
+        if beam_type not in beam_map:
+            raise ValueError(f"Invalid beam particle: {beam_type}. Must be deuteron, proton, or alpha.")
         
         target = self._formatTargetLength(targetFoil, target)
-
-        return (
-            f"https://tendl.web.psi.ch/tendl_2023/{beam_file}"
-            f"{targetFoil}/{target}/tables/residual/rp{product}{fileEnding}"
-        )
+        return f"https://tendl.web.psi.ch/tendl_2023/{beam_map[beam_type]}{targetFoil}/{target}/tables/residual/rp{product}{fileEnding}"
 
     def _formatTargetLength(
         self,
