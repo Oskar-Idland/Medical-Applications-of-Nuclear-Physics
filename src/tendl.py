@@ -25,13 +25,13 @@ class Tendl:
         The name of the incident beam particle (e.g., 'deuteron', 'proton', 'alpha').
 
     Methods:
-    --------
+    ---------
     __init__(target: dict[str, float], beamParticle: str) -> None
         Initialize the Tendl object with target composition and beam particle.
     _name_trans_curie_tendl(name: str) -> str
         Convert a nuclide name from Curie notation (e.g., 'AG108') to TENDL format (e.g., 'Ag108').
     _tendlDeuteronData(productZ: str, productA: str, isomerLevel: str | None = None) -> tuple[ArrayLike, ArrayLike]
-        Fetch and interpolate TENDL deuteron cross-section data for a given isotope and optional isomer level.
+        Fetch and interpolte TENDL deuteron cross-section data for a given isotope and optional isomer level.
     tendlData(productZ: str, productA: str, isomerLevel: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]
     plotTendl23(productZ: str, productA: str, isomerLevel: str | None = None) -> None
         Plot TENDL-2023 cross-section data for a given isotope, with optional isomer level.
@@ -41,8 +41,6 @@ class Tendl:
         Plot cross-section data for an isotope, including summed contributions from beta and isomeric decay chains.
     _product(productZ: str, productA: str) -> str
         Format productZ and productA as zero-padded strings and concatenate them.
-    _tendDeuteronlUrl(targetFoil: str, target: str, product: str, fileEnding: str) -> str
-        Construct a URL for accessing deuteron-induced nuclear reaction data from the TENDL database.
     _tendlUrl(targetFoil: str, target: str, product: str, fileEnding: str) -> str
         Construct the URL for accessing TENDL nuclear data files based on the specified parameters.
     _formatTargetLength(targetFoil: str, targetIsotope: str) -> str
@@ -143,8 +141,8 @@ class Tendl:
                 E.append(data[0])
                 Cs.append(data[1])
 
-        if not E or not Cs:
-            raise Exception(f"TENDL: No data for {foil} with Z={productZ}, A={productA}")
+            if not E or not Cs:
+                raise Exception(f"TENDL: No data for {foil} with Z={productZ}, A={productA}")
 
         CsSum = np.sum(Cs, axis=0)
         E_interp, Cs_interp = Tools().interpolate(E[0], CsSum)
