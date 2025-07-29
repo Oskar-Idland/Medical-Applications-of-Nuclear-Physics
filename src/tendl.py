@@ -27,19 +27,17 @@ class Tendl:
     -------
     `__init__(target: dict[str, float], beamParticle: str) -> None`:
         Initialize the Tendl object with target composition and beam particle.
-    `_name_trans_curie_tendl(name: str) -> str`:
-        Convert a nuclide name from Curie notation (e.g., 'AG108') to TENDL format (e.g., 'Ag108').
-    `_retrieveTendlData(productZ: str, productA: str, isomerLevel: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]`:
-        Retrieve and interpolate TENDL cross-section data for a given isotope.
-    `tendlData(productZ: str, productA: str, isomerLevel: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]`:
+    `tendl_data(productZ: str, productA: str, isomerLevel: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]`:
         Retrieve and interpolate TENDL cross-section data for a given isotope, with optional isomer level and energy limit, across all targets.
-    `plotTendl23Unique(productZ: str, productA: str, Elimit: float | None = None, isomerLevel: str | None = None, color: str = 'blue', lineStyle: str = '--', label: str = 'TENDL-2023') -> None`:
+    `plot_tendl23_unique(productZ: str, productA: str, Elimit: float | None = None, isomerLevel: str | None = None, color: str = 'blue', lineStyle: str = '--', label: str = 'TENDL-2023') -> None`:
         Retrieve and plot TENDL-2023 cross-section data for a given isotope, with options for isomer level, energy limit, and plot style.
+    `plot_data_with_multiple_feeding(productZ: str, productA: str, isomerLevel: str, betaPlusDecayChain: dict[str, tuple[str, float, str]] | None = None, betaMinusDecayChain: dict[str, tuple[str, float, str]] | None = None, isomerDecayChain: dict[str, tuple[float, str]] | None = None) -> None`:
+        Plot cross-section data for an isotope, including summed contributions from beta and isomeric decay chains
+    `_retrieve_tendl_data(productZ: str, productA: str, isomerLevel: str | None = None, Elimit: float | None = None) -> tuple[ArrayLike, ArrayLike]`:
+        Retrieve and interpolate TENDL cross-section data for a given isotope.
     `_get_weighted_cs(chain, productZ, productA, is_isomer=False) -> list[ArrayLike]`:
         Calculate weighted cross-sections for decay chains.
-    `plotdataWithMultipleFeeding(productZ: str, productA: str, isomerLevel: str, betaPlusDecayChain: dict[str, tuple[str, float, str]] | None = None, betaMinusDecayChain: dict[str, tuple[str, float, str]] | None = None, isomerDecayChain: dict[str, tuple[float, str]] | None = None) -> None`:
-        Plot cross-section data for an isotope, including summed contributions from beta and isomeric decay chains.
-    `_tendlUrl(targetFoil: str, target: str, product: str, fileEnding: str, beam_type: str | None = None) -> str`:
+    `_tendl_url(targetFoil: str, target: str, product: str, fileEnding: str, beam_type: str | None = None) -> str`:
         Construct the URL for accessing TENDL nuclear data files based on the specified parameters.
     """
     
@@ -69,78 +67,7 @@ class Tendl:
         self.target = {self._name_trans_curie_tendl(k): v for k, v in target.items()}  # Convert keys to TENDL format
         self.beamParticle = beamParticle
     
-    def _name_trans_curie_tendl(
-        self,
-        name: str
-    ) -> str:
-        """
-        Converts a nuclide name from Curie to TENDL format (e.g., 'AG108' → 'Ag108').
-        
-        Parameters
-        ----------
-        name : str
-            The nuclide name in Curie notation (e.g., 'AG108').
-        
-        Returns
-        -------
-        str
-            The nuclide name in TENDL notation (e.g., 'Ag108').
-        """
-        digits = ''.join(filter(str.isdigit, name))
-        symbol = ''.join(filter(str.isalpha, name)).capitalize()  
-        return f"{symbol}{digits}"
-    
-    def _retrieveTendlData(
-        self,
-        productZ: str,
-        productA: str,
-        isomerLevel: str | None = None,
-        Elimit: float | None = None
-    ) -> tuple[ArrayLike, ArrayLike]:
-        """
-        Retrieve and interpolate TENDL cross-section data for a given isotope.
-        
-        Parameters
-        ----------
-        productZ : str
-            Atomic number (Z) of the product isotope as a string.
-        productA : str
-            Mass number (A) of the product isotope as a string.
-        isomerLevel : str or None, optional
-            Isomeric state of the product isotope (e.g., 'm1', 'm2'). If None, ground state is assumed.
-        Elimit : float or None, optional
-            Upper energy limit for the data interpolation. If None, no energy limit is applied.
-
-        Returns
-        -------
-        tuple[ArrayLike, ArrayLike]
-            Interpolated energy and cross-section data for the specified isotope.
-
-        Raises
-        ------
-        Exception
-            If no data is found for the specified target and product isotope combination.
-        """
-        foil = list(self.target.keys())[0][:2]
-        product = self._product(productZ, productA)
-        fileEnding = self._tendlFileEnding(isomerLevel)
-        E, Cs = [], []
-
-        for t in self.target:
-            data = self._retrieveTendlDataFromUrl(self._tendlUrl(foil, t, product, fileEnding), t)
-            if all(isinstance(d, np.ndarray) and len(d) > 0 for d in data):
-                E.append(data[0])
-                Cs.append(data[1])
-            
-        if not E or not Cs:
-            raise Exception(f"TENDL: No data for {foil} with Z={productZ}, A={productA}")
-        
-        CsSum = np.sum(Cs, axis=0)
-        E_interp, Cs_interp = Tools().interpolate(E[0], CsSum, xlimit=Elimit)   
-
-        return E_interp, Cs_interp
-
-    def tendlData(
+    def tendl_data(
         self,
         productZ: str,
         productA: str,
@@ -173,9 +100,9 @@ class Tendl:
         Exception
             If no data is found for the specified target and product isotope combination.
         """
-        return self._retrieveTendlData(productZ, productA, isomerLevel, Elimit)
+        return self._retrieve_tendl_data(productZ, productA, isomerLevel, Elimit)
 
-    def plotTendl23Unique(
+    def plot_tendl23_unique(
         self,
         productZ: str,
         productA: str,
@@ -216,11 +143,112 @@ class Tendl:
             If the TENDL data cannot be retrieved (e.g., due to lack of internet connection), an error message is printed.
         """
         try:
-            E, Cs = self.tendlData(productZ, productA, isomerLevel, Elimit)
+            E, Cs = self.tendl_data(productZ, productA, isomerLevel, Elimit)
             plt.plot(E, Cs, label=label, linestyle=lineStyle, color=color)
         except Exception as e:
             print(f"Unable to retrieve TENDL data: {e}")
+
+    def plot_data_with_multiple_feeding(
+        self,
+        productZ: str,
+        productA: str,
+        isomerLevel: str,
+        betaPlusDecayChain: dict[str, tuple[str, float, str]] | None = None,
+        betaMinusDecayChain: dict[str, tuple[str, float, str]] | None = None,
+        isomerDecayChain: dict[str, tuple[float, str]] | None = None
+    ) -> None:
+        """
+        Plots cross-section data for an isotope, including summed contributions from beta and isomeric decay chains.
+
+        Parameters
+        ----------
+        productZ : str
+            The atomic number (Z) of the product isotope as a string.
+        productA : str
+            The mass number (A) of the product isotope as a string.
+        isomerLevel : str
+            The isomeric level of the product isotope as a string.
+        betaPlusDecayChain : dict[str, tuple[str, float, str]], optional
+            Dictionary mapping isotope identifiers to tuples containing (productZ, branchingRatio, isomerLevel) for beta-plus decay chains.
+        betaMinusDecayChain : dict[str, tuple[str, float, str]], optional
+            Dictionary mapping isotope identifiers to tuples containing (productZ, branchingRatio, isomerLevel) for beta-minus decay chains.
+        isomerDecayChain : dict[str, tuple[float, str]], optional
+            Dictionary mapping isotope identifiers to tuples containing (branchingRatio, isomerLevel) for isomeric transitions.
+        
+        Returns
+        -------
+        None
+            This method generates a plot of the total cross-section.
+        """
+        try:
+            E, Cs = self.tendl_data(productZ, productA, isomerLevel)
+
+            # Collect all decay contributions
+            all_contributions = []
+            all_contributions.extend(self._get_weighted_cs(betaPlusDecayChain, productZ, productA))
+            all_contributions.extend(self._get_weighted_cs(betaMinusDecayChain, productZ, productA))
+            all_contributions.extend(self._get_weighted_cs(isomerDecayChain, productZ, productA, is_isomer=True))
+
+            # Sum contributions
+            Cs_tot = Cs
+            if all_contributions:
+                Cs_tot += np.sum(all_contributions, axis=0)
+
+            plt.plot(E, Cs_tot, label='TENDL-2023', linestyle='--', color='blue')
+
+        except Exception as e:
+            print(f"Unable to retrieve TENDL data: {e}")
     
+    def _retrieve_tendl_data(
+        self,
+        productZ: str,
+        productA: str,
+        isomerLevel: str | None = None,
+        Elimit: float | None = None
+    ) -> tuple[ArrayLike, ArrayLike]:
+        """
+        Retrieve and interpolate TENDL cross-section data for a given isotope.
+        
+        Parameters
+        ----------
+        productZ : str
+            Atomic number (Z) of the product isotope as a string.
+        productA : str
+            Mass number (A) of the product isotope as a string.
+        isomerLevel : str or None, optional
+            Isomeric state of the product isotope (e.g., 'm1', 'm2'). If None, ground state is assumed.
+        Elimit : float or None, optional
+            Upper energy limit for the data interpolation. If None, no energy limit is applied.
+
+        Returns
+        -------
+        tuple[ArrayLike, ArrayLike]
+            Interpolated energy and cross-section data for the specified isotope.
+
+        Raises
+        ------
+        Exception
+            If no data is found for the specified target and product isotope combination.
+        """
+        foil = list(self.target.keys())[0][:2]
+        product = self._format_product(productZ, productA)
+        fileEnding = self._tendl_file_ending(isomerLevel)
+        E, Cs = [], []
+
+        for t in self.target:
+            data = self._retrieve_tendl_data_from_url(self._tendl_url(foil, t, product, fileEnding), t)
+            if all(isinstance(d, np.ndarray) and len(d) > 0 for d in data):
+                E.append(data[0])
+                Cs.append(data[1])
+            
+        if not E or not Cs:
+            raise Exception(f"TENDL: No data for {foil} with Z={productZ}, A={productA}")
+        
+        CsSum = np.sum(Cs, axis=0)
+        E_interp, Cs_interp = Tools().interpolate(E[0], CsSum, xlimit=Elimit)   
+
+        return E_interp, Cs_interp
+
     def _get_weighted_cs(
         self,
         chain: dict[str, tuple] | dict[str, tuple] | None,
@@ -257,66 +285,36 @@ class Tendl:
         for _, vals in chain.items():
             if is_isomer:
                 branchingRatio, isomerLevel = vals
-                _, Cs_val = self.tendlData(productZ, productA, isomerLevel)
+                _, Cs_val = self.tendl_data(productZ, productA, isomerLevel)
             else:
                 Z, branchingRatio, isomerLevel = vals
-                _, Cs_val = self.tendlData(Z, productA, isomerLevel)
+                _, Cs_val = self.tendl_data(Z, productA, isomerLevel)
             results.append(Cs_val * branchingRatio)
         
         return results
 
-    def plotdataWithMultipleFeeding(
+    def _name_trans_curie_tendl(
         self,
-        productZ: str,
-        productA: str,
-        isomerLevel: str,
-        betaPlusDecayChain: dict[str, tuple[str, float, str]] | None = None,
-        betaMinusDecayChain: dict[str, tuple[str, float, str]] | None = None,
-        isomerDecayChain: dict[str, tuple[float, str]] | None = None
-    ) -> None:
+        name: str
+    ) -> str:
         """
-        Plots cross-section data for an isotope, including summed contributions from beta and isomeric decay chains.
-
+        Converts a nuclide name from Curie to TENDL format (e.g., 'AG108' → 'Ag108').
+        
         Parameters
         ----------
-        productZ : str
-            The atomic number (Z) of the product isotope as a string.
-        productA : str
-            The mass number (A) of the product isotope as a string.
-        isomerLevel : str
-            The isomeric level of the product isotope as a string.
-        betaPlusDecayChain : dict[str, tuple[str, float, str]], optional
-            Dictionary mapping isotope identifiers to tuples containing (productZ, branchingRatio, isomerLevel) for beta-plus decay chains.
-        betaMinusDecayChain : dict[str, tuple[str, float, str]], optional
-            Dictionary mapping isotope identifiers to tuples containing (productZ, branchingRatio, isomerLevel) for beta-minus decay chains.
-        isomerDecayChain : dict[str, tuple[float, str]], optional
-            Dictionary mapping isotope identifiers to tuples containing (branchingRatio, isomerLevel) for isomeric transitions.
+        name : str
+            The nuclide name in Curie notation (e.g., 'AG108').
         
         Returns
         -------
-        None
-            This method generates a plot of the total cross-section.
+        str
+            The nuclide name in TENDL notation (e.g., 'Ag108').
         """
-        try:
-            E, Cs = self.tendlData(productZ, productA, isomerLevel)
-
-            # Collect all decay contributions
-            all_contributions = []
-            all_contributions.extend(self._get_weighted_cs(betaPlusDecayChain, productZ, productA))
-            all_contributions.extend(self._get_weighted_cs(betaMinusDecayChain, productZ, productA))
-            all_contributions.extend(self._get_weighted_cs(isomerDecayChain, productZ, productA, is_isomer=True))
-
-            # Sum contributions
-            Cs_tot = Cs
-            if all_contributions:
-                Cs_tot += np.sum(all_contributions, axis=0)
-
-            plt.plot(E, Cs_tot, label='TENDL-2023', linestyle='--', color='blue')
-
-        except Exception as e:
-            print(f"Unable to retrieve TENDL data: {e}")
-
-    def _product(
+        digits = ''.join(filter(str.isdigit, name))
+        symbol = ''.join(filter(str.isalpha, name)).capitalize()  
+        return f"{symbol}{digits}"
+    
+    def _format_product(
         self,
         productZ: str,
         productA: str
@@ -341,7 +339,7 @@ class Tendl:
         productA = productA.zfill(3)
         return productZ + productA
 
-    def _tendlUrl(
+    def _tendl_url(
         self,
         targetFoil: str,
         target: str,
@@ -385,10 +383,10 @@ class Tendl:
         if beam_type not in beam_map:
             raise ValueError(f"Invalid beam particle: {beam_type}. Must be deuteron, proton, or alpha.")
         
-        target = self._formatTargetLength(targetFoil, target)
+        target = self._format_target_length(targetFoil, target)
         return f"https://tendl.web.psi.ch/tendl_2023/{beam_map[beam_type]}{targetFoil}/{target}/tables/residual/rp{product}{fileEnding}"
 
-    def _formatTargetLength(
+    def _format_target_length(
         self,
         targetFoil: str,
         targetIsotope: str
@@ -414,7 +412,7 @@ class Tendl:
             isotopeNumber = '0' + isotopeNumber
         return targetFoil + isotopeNumber
 
-    def _tendlFileEnding(
+    def _tendl_file_ending(
         self,
         isomerLevel: str | None = None
     ) -> str:
@@ -436,7 +434,7 @@ class Tendl:
         """
         return f".tot" if isomerLevel is None else f".L{isomerLevel}"
 
-    def _retrieveTendlDataFromUrl(
+    def _retrieve_tendl_data_from_url(
         self,
         url: str,
         target: str
@@ -569,7 +567,7 @@ class Tools:
 #     tendl = Tendl(target, beamParticle)
     
 #     # Example of retrieving and plotting data
-#     tendl.plotTendl23Unique('39', '92')
+#     tendl.plot_tendl23_unique('39', '92')
 #     plt.xlabel('Energy (MeV)')
 #     plt.ylabel('Cross-section (mb)')
 #     plt.title('TENDL-2023 Cross-section Data')
