@@ -215,8 +215,6 @@ class SpectrumAnalysis:
         Configuration parameters for peak fitting.
     spectrum_list : NDArray
         Array of Spectrum objects for each measurement loop.
-    live_times : NDArray
-        Array of live measurement times for each loop.
     start_times : list[pd.Timestamp]
         List of measurement start times for each loop.
     time_deltas : NDArray
@@ -309,7 +307,7 @@ class SpectrumAnalysis:
 
         # Extract job info and run analysis
         self.job_specs = self._get_job_specs()
-        self.spectrum_list, self.live_times, self.start_times, self.time_deltas, self.isotope_energy = self._load_spectrum_files(self.job_specs)
+        self.spectrum_list, self.start_times, self.time_deltas, self.isotope_energy = self._load_spectrum_files(self.job_specs)
         self.Ag108, self.Ag110 = self._calculate_activities(self.spectrum_list)
         self.true_times = self.time_deltas  + self.Δt_d
         self.Ag108.A0, self.Ag108.cov = self._fit_decay_curve(self.Ag108)
@@ -480,13 +478,11 @@ class SpectrumAnalysis:
         tuple[NDArray, NDArray, NDArray, list[pd.Timestamp], NDArray, set]
             Containing:
             - spectrum_list: Array of Spectrum objects for each measurement loop
-            - live_times: Array of live measurement times for each loop
             - start_times: List of measurement start timestamps for each loop
             - time_deltas: Array of time differences (in seconds) from the first measurement
             - isotope_energy: Set of (isotope, energy) tuples found in all spectra
         """
         spectrum_list = []
-        live_times = []
         start_times = []
         time_deltas = []
         isotope_energy = set()  # Set of (isotope, energy) tuples found in all spectra
@@ -506,7 +502,6 @@ class SpectrumAnalysis:
         
         # Extract data using list comprehensions
         spectrum_list = np.array([spectrum for spectrum, _ in valid_data])
-        live_times = np.array([peaks['live_time'].array[0] for _, peaks in valid_data])
         start_times = [pd.Timestamp(peaks['start_time'].array[0]) for _, peaks in valid_data]
         
         # Calculate time deltas
