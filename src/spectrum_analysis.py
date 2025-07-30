@@ -37,6 +37,8 @@ class GammaPeak:
         
     Methods
     -------
+    `n_measurements` : property
+        Return the number of measurements for this peak.
     `add_measurement`(time: float, activity: float, uncertainty: float) -> None:
         Add a new measurement for this energy peak.
     
@@ -50,6 +52,11 @@ class GammaPeak:
         """Validate energy value after initialization."""
         if self.energy <= 0:
             raise ValueError(f"Energy must be positive, got {self.energy}")
+    
+    @property
+    def n_measurements(self) -> int:
+        """Return the number of measurements for this peak."""
+        return len(self.times)
         
     def add_measurement(self,
                         time: float,
@@ -70,11 +77,6 @@ class GammaPeak:
         self.times.append(time)
         self.activities.append(activity)
         self.uncertainties.append(uncertainty)
-   
-    @property
-    def n_measurements(self) -> int:
-        """Return the number of measurements for this peak."""
-        return len(self.times)
 
 @dataclass
 class IsotopeResults:
@@ -111,27 +113,15 @@ class IsotopeResults:
 
     Methods
     -------
-    `get_peak`(energy: float, tolerance: float = 0.5) -> GammaPeak | None:
-        Finds a `GammaPeak` object for a given energy within a tolerance.
     `add_or_update_peak`(energy: float, time: float, activity: float, uncertainty: float, tolerance: float = 0.5) -> None:
         Adds a measurement to an existing peak or creates a new one.
+    `_get_peak`(energy: float, tolerance: float = 0.5) -> GammaPeak | None:
+        Finds a `GammaPeak` object for a given energy within a tolerance.
     """
     isotope: str
     peaks: list[GammaPeak] = field(default_factory=list)
     A0: UFloat = ufloat(0, 1e-16)
     cov: NDArray | None = None
-    
-    def _get_peak(self,
-                  energy: float,
-                  tolerance: float = 0.5) -> GammaPeak | None:
-        """
-        Find a peak with the given energy within the specified tolerance.
-        Returns None if no matching peak is found.
-        """
-        for peak in self.peaks:
-            if abs(peak.energy - energy) <= tolerance:
-                return peak
-        return None
     
     def add_or_update_peak(self,
                            energy: float,
@@ -168,6 +158,18 @@ class IsotopeResults:
             self.peaks.append(peak)
         
         peak.add_measurement(time, activity, uncertainty)
+    
+    def _get_peak(self,
+                  energy: float,
+                  tolerance: float = 0.5) -> GammaPeak | None:
+        """
+        Find a peak with the given energy within the specified tolerance.
+        Returns None if no matching peak is found.
+        """
+        for peak in self.peaks:
+            if abs(peak.energy - energy) <= tolerance:
+                return peak
+        return None
 
 
 class SpectrumAnalysis:
@@ -240,27 +242,33 @@ class SpectrumAnalysis:
 
     Methods
     -------
-    `plot_activity`(save_fig: bool = True)
+    `plot_activity`(save_fig: bool = True) -> None:
         Plot activities for each isotope with different colors for different energy peaks.
-    `plot_A0_analytical`(save_fig: bool = True)
+    `plot_A0_analytical`(save_fig: bool = True) -> None:
         Plot the analytical A0 values for each isotope and peak.
-    `A0_func`(N_c: UFloat, λ: UFloat, ε: UFloat, I_γ: UFloat, Δt_c: float, Δt_d: float) -> UFloat
+    `A0_func`(N_c: UFloat, λ: UFloat, ε: UFloat, I_γ: UFloat, Δt_c: float, Δt_d: float) -> UFloat:
         Calculate initial activity analytically.
 
-    Internal Methods
-    ----------------
-    `_activity_model`(t: NDArray, λ: float, A0: float) -> NDArray
-        Model for activity decay.
-    `_get_job_specs`() -> dict
+    Private Methods
+    ---------------
+    `_get_job_specs`() -> dict[str, int]:
         Extract job specifications from the spectrum filename.
-    `_read_spectrums`(job_specs: dict[str, int]) -> tuple[NDArray, NDArray, NDArray, list[pd.Timestamp], NDArray, set]
+    `_create_configured_spectrum`(loop_index: int) -> tuple[ci.Spectrum, pathlib.Path]:
+        Create and configure a Spectrum object for a specific measurement loop.
+    `_read_spectrums`(job_specs: dict[str, int]) -> tuple[NDArray, NDArray, NDArray, list[pd.Timestamp], NDArray, set]:
         Read spectrum files and extract relevant data.
-    `_calculate_activities`(spectrums: NDArray) -> tuple[IsotopeResults, IsotopeResults]
+    `_process_peak`(peak_data: dict, true_time: float) -> tuple[str, float, UFloat, UFloat]:
+        Processes peak data to calculate the activity and approximate initial activity.
+    `_calculate_activities`(spectrums: NDArray) -> tuple[IsotopeResults, IsotopeResults]:
         Calculate activities for each gamma peak in each spectrum.
-    `_fit_combined_activity`(iso_results: IsotopeResults) -> tuple[UFloat, NDArray]
+    `_fit_combined_activity`(iso_results: IsotopeResults) -> tuple[UFloat, NDArray]:
         Fit activity curve using all peaks for an isotope.
-    `_plot_isotope_data`(ax: plt.Axes, iso_results: IsotopeResults) -> None
+    `_plot_isotope_data`(ax: plt.Axes, iso_results: IsotopeResults) -> None:
         Plot data for a specific isotope on the given axes.
+    `_plot_analytical_A0_for_isotope`(ax: Axes, isotope_results: IsotopeResults, analytical_A0_list: list[float], analytical_energies_list: list[float]) -> None:
+        Plot the analytical A0 values for a specific isotope.
+    `_activity_model`(t: NDArray, λ: float, A0: float) -> NDArray:
+        Model for activity decay.
     """
 
     def __init__(self,
@@ -308,6 +316,98 @@ class SpectrumAnalysis:
         self.true_times = self.time_deltas  + self.Δt_d
         self.Ag108.A0, self.Ag108.cov = self._fit_combined_activity(self.Ag108)
         self.Ag110.A0, self.Ag110.cov = self._fit_combined_activity(self.Ag110)
+    
+    def plot_activity(self, 
+                      save_fig: bool = True) -> None:
+        """
+        Plot activities for each isotope, with different colors for different energy peaks.
+        
+        Parameters
+        ----------
+        save_fig : bool, optional
+            Whether to save the figure to file, by default True.
+        """
+        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
+
+        # Plot isotope data
+        self._plot_isotope_data(ax1, self.Ag108)
+        self._plot_isotope_data(ax2, self.Ag110)
+
+        plt.suptitle(f"Activity Analysis for {self.spec_filename.stem}")
+        plt.tight_layout()
+        
+        if save_fig:
+            path = self.fig_path / "activity_analysis" / f"{self.spec_filename.stem}"
+            path.parent.mkdir(parents=True, exist_ok=True)
+
+            plt.savefig(path.with_suffix(".pdf"))
+            plt.savefig(path.with_suffix(".png"))
+        plt.show()
+    
+    def plot_A0_analytical(self, 
+                           save_fig: bool = True) -> None:
+        """
+        Plot the analytical A0 values for each isotope and peak.
+        
+        Parameters
+        ----------
+        save_fig : bool, optional
+            Whether to save the figure to file, by default True.
+        """
+        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
+
+        # Use the helper method for both isotopes
+        self._plot_analytical_A0_for_isotope(ax1, self.Ag108, self.A0_analytical_108, self.A0_analytical_energies_108)
+        self._plot_analytical_A0_for_isotope(ax2, self.Ag110, self.A0_analytical_110, self.A0_analytical_energies_110)
+
+        #Add y-axis label to the first subplot
+        ax1.set_ylabel("Analytical A₀ [Bq]")
+
+        plt.suptitle(f"Analytical A₀ Calculation for {self.spec_filename.stem}")
+        plt.tight_layout(rect=(0., 0.03, 1., 0.95))
+
+        if save_fig:
+            path = self.fig_path / f"{self.spec_filename.stem}_A0_analytical"
+            plt.savefig(path.with_suffix(".pdf"))
+            plt.savefig(path.with_suffix(".png"))
+        plt.show()
+    
+    def A0_func(self, 
+                N_c: UFloat, 
+                λ: UFloat, 
+                ε: UFloat, 
+                I_γ: UFloat, 
+                Δt_c: float, 
+                Δt_d: float) -> UFloat:
+        """
+        Calculate initial activity analytically from gamma-ray spectroscopy measurements.
+        
+        Uses the formula:
+        A₀ = (N_c · λ) / [ε · I_γ · (1 - exp(-λ · Δt_c)) · exp(-λ · Δt_d)]
+        
+        Parameters
+        ----------
+        N_c : UFloat
+            Net counts with uncertainty.
+        λ : UFloat
+            Decay constant with uncertainty [s⁻¹].
+        ε : UFloat
+            Detection efficiency (dimensionless) with uncertainty.
+        I_γ : UFloat
+            Gamma-ray intensity (branching ratio) with uncertainty.
+        Δt_c : float
+            Count time (live time) [s].
+        Δt_d : float
+            Delay time since end of irradiation [s].
+            
+        Returns
+        -------
+        UFloat
+            Initial activity at end of irradiation with uncertainty [Bq].
+        """
+        count_rate_correction = (1 - uexp(-λ * Δt_c))  # type: ignore
+        decay_correction = uexp(-λ * Δt_d)  # type: ignore
+        return (N_c * λ) / (ε * I_γ * count_rate_correction * decay_correction)  # type: ignore
     
 
     def _get_job_specs(self) -> dict[str, int]:
@@ -697,33 +797,6 @@ class SpectrumAnalysis:
         ax.set_ylabel("Activity [Bq]")
         ax.legend()
         ax.grid(True, alpha=0.3)
-    
-    def plot_activity(self, 
-                      save_fig: bool = True) -> None:
-        """
-        Plot activities for each isotope, with different colors for different energy peaks.
-        
-        Parameters
-        ----------
-        save_fig : bool, optional
-            Whether to save the figure to file, by default True.
-        """
-        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
-
-        # Plot isotope data
-        self._plot_isotope_data(ax1, self.Ag108)
-        self._plot_isotope_data(ax2, self.Ag110)
-
-        plt.suptitle(f"Activity Analysis for {self.spec_filename.stem}")
-        plt.tight_layout()
-        
-        if save_fig:
-            path = self.fig_path / "activity_analysis" / f"{self.spec_filename.stem}"
-            path.parent.mkdir(parents=True, exist_ok=True)
-
-            plt.savefig(path.with_suffix(".pdf"))
-            plt.savefig(path.with_suffix(".png"))
-        plt.show()
 
     def _plot_analytical_A0_for_isotope(self,
                                          ax: Axes,
@@ -753,35 +826,7 @@ class SpectrumAnalysis:
         ax.set_xlabel("Measurement Index")
         ax.legend()
         ax.grid(True, alpha=0.3)
-    
-    def plot_A0_analytical(self, 
-                           save_fig: bool = True) -> None:
-        """
-        Plot the analytical A0 values for each isotope and peak.
-        
-        Parameters
-        ----------
-        save_fig : bool, optional
-            Whether to save the figure to file, by default True.
-        """
-        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
 
-        # Use the helper method for both isotopes
-        self._plot_analytical_A0_for_isotope(ax1, self.Ag108, self.A0_analytical_108, self.A0_analytical_energies_108)
-        self._plot_analytical_A0_for_isotope(ax2, self.Ag110, self.A0_analytical_110, self.A0_analytical_energies_110)
-
-        #Add y-axis label to the first subplot
-        ax1.set_ylabel("Analytical A₀ [Bq]")
-
-        plt.suptitle(f"Analytical A₀ Calculation for {self.spec_filename.stem}")
-        plt.tight_layout(rect=(0., 0.03, 1., 0.95))
-
-        if save_fig:
-            path = self.fig_path / f"{self.spec_filename.stem}_A0_analytical"
-            plt.savefig(path.with_suffix(".pdf"))
-            plt.savefig(path.with_suffix(".png"))
-        plt.show()
-        
     def _activity_model(self, 
                         t: NDArray, 
                         λ: float, 
@@ -804,40 +849,3 @@ class SpectrumAnalysis:
             Activity values at given times [Bq].
         """
         return A0 * np.exp(-λ * t)
-    
-    def A0_func(self, 
-                N_c: UFloat, 
-                λ: UFloat, 
-                ε: UFloat, 
-                I_γ: UFloat, 
-                Δt_c: float, 
-                Δt_d: float) -> UFloat:
-        """
-        Calculate initial activity analytically from gamma-ray spectroscopy measurements.
-        
-        Uses the formula:
-        A₀ = (N_c · λ) / [ε · I_γ · (1 - exp(-λ · Δt_c)) · exp(-λ · Δt_d)]
-        
-        Parameters
-        ----------
-        N_c : UFloat
-            Net counts with uncertainty.
-        λ : UFloat
-            Decay constant with uncertainty [s⁻¹].
-        ε : UFloat
-            Detection efficiency (dimensionless) with uncertainty.
-        I_γ : UFloat
-            Gamma-ray intensity (branching ratio) with uncertainty.
-        Δt_c : float
-            Count time (live time) [s].
-        Δt_d : float
-            Delay time since end of irradiation [s].
-            
-        Returns
-        -------
-        UFloat
-            Initial activity at end of irradiation with uncertainty [Bq].
-        """
-        count_rate_correction = (1 - uexp(-λ * Δt_c))  # type: ignore
-        decay_correction = uexp(-λ * Δt_d)  # type: ignore
-        return (N_c * λ) / (ε * I_γ * count_rate_correction * decay_correction)  # type: ignore
