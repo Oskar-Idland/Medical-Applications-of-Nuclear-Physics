@@ -307,7 +307,7 @@ class SpectrumAnalysis:
 
         # Extract job info and run analysis
         self.job_specs = self._get_job_specs()
-        self.spectrum_list, self.start_times, self.time_deltas, self.isotope_energy = self._load_spectrum_files(self.job_specs)
+        self.spectrum_list, self.time_deltas, self.isotope_energy = self._load_spectrum_files(self.job_specs)
         self.Ag108, self.Ag110 = self._calculate_activities(self.spectrum_list)
         self.true_times = self.time_deltas  + self.Δt_d
         self.Ag108.A0, self.Ag108.cov = self._fit_decay_curve(self.Ag108)
@@ -460,7 +460,7 @@ class SpectrumAnalysis:
         return spectrum, spec_path
 
     def _load_spectrum_files(self,
-                        job_specs: dict[str, int]) -> tuple[NDArray, list[pd.Timestamp], NDArray, set]:
+                        job_specs: dict[str, int]) -> tuple[NDArray, NDArray, set]:
         """
         Read the spectrum files and return arrays of Spectrum objects and associated measurement data.
 
@@ -514,7 +514,7 @@ class SpectrumAnalysis:
         for _, peaks in valid_data:
             isotope_energy.update(zip(peaks['isotope'].array, peaks['energy'].array))
         
-        return spectrum_list, start_times, time_deltas, isotope_energy
+        return spectrum_list, time_deltas, isotope_energy
     
     def _process_peak(self,
                       peak_data: dict,
