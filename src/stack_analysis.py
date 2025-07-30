@@ -31,15 +31,15 @@ class StackAnalysis:
 
     Methods
     -------
-    `__init__(stack: ci.Stack, effciency_func: Callable, proton_flux: float = 6.24e11, irradiation_time: float = 60*60) -> None`:
+    `__init__`(stack: ci.Stack, effciency_func: Callable, proton_flux: float = 6.24e11, irradiation_time: float = 60*60) -> None:
         Initialize the StackAnalysis object with stack configuration and irradiation parameters.
-    `analyze(products: dict[str, pd.DataFrame], t_d: NDArray[float64|int64] = np.arange(0, 60*60), t_max: float = 60*60, min_intensity: float = 10.0, dE_511: float = 0.1, silent: bool = True) -> pd.DataFrame`:
+    `analyze`(products: dict[str, pd.DataFrame], t_d: NDArray[float64|int64] = np.arange(0, 60*60), t_max: float = 60*60, min_intensity: float = 10.0, dE_511: float = 0.1, silent: bool = True) -> pd.DataFrame:
         Analyze the stack to calculate counting times for gamma lines from each foil across specified delay times.
-    `plot(counting_times: pd.DataFrame, target: str | None = None, n_gammas: int = 5, title: str = '') -> Figure`:
+    `plot`(counting_times: pd.DataFrame, target: str | None = None, n_gammas: int = 5, title: str = '') -> Figure:
         Generate plots of counting times versus delay times for the most favorable gamma lines.
-    `_A0(σ: float | NDArray[float64], N_T: int | NDArray[int64], Φ: float | NDArray[float64], t_irr: float | NDArray[float64], λ: float | NDArray[float64]) -> NDArray[float64]`:
+    `_A0`(σ: float | NDArray[float64], N_T: int | NDArray[int64], Φ: float | NDArray[float64], t_irr: float | NDArray[float64], λ: float | NDArray[float64]) -> NDArray[float64]:
         Calculate initial activity from nuclear reaction parameters and decay constants.
-    `_counting_time(A0: float | NDArray[float64], I_γ: float | NDArray[float64], t_d: float | NDArray[float64|int64], ε_γ: float | NDArray[float64], λ: float | NDArray[float64], N_c: int | NDArray[int64] = 10_000) -> float | NDArray[float64]`:
+    `_counting_time`(A0: float | NDArray[float64], I_γ: float | NDArray[float64], t_d: float | NDArray[float64|int64], ε_γ: float | NDArray[float64], λ: float | NDArray[float64], N_c: int | NDArray[int64] = 10_000) -> float | NDArray[float64]:
         Determine counting time required to achieve specified count statistics as function of delay time.
     """
 
@@ -59,7 +59,7 @@ class StackAnalysis:
                  proton_flux: float = 6.24e11,
                  irradiation_time: float = 60*60):
         """
-        Initializes the StackAnalysis class.
+        Initializes the `StackAnalysis` class.
         
         Parameters
         ----------
