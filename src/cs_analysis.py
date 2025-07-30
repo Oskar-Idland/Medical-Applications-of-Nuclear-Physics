@@ -44,70 +44,30 @@ class CrossSectionAnalysis:
     
     Methods
     -------
-    __init__(
-        target: str | Iterable[str],
-    ) -> None
-    isotope_overview(
-        isotopes: Iterable[str] | None = None,
-        max_half_life: float | None = None,
-        min_half_life: float | None = None,
-        grayzone_half_life: float | None = None,
-        copy_to_clipboard: bool = False,
-        print_markdown: bool = False
-    ) -> pd.DataFrame
+    `__init__`(target: str | Iterable[str]) -> None:
+        Initializes the CrossSectionAnalysis class with target material and particle beam.
+    `isotope_overview`(isotopes: Iterable[str] | None = None, max_half_life: float | None = None, min_half_life: float | None = None, grayzone_half_life: float | None = None, copy_to_clipboard: bool = False, print_markdown: bool = False) -> pd.DataFrame:
         Creates an overview DataFrame of isotopes with half-lives and observation status.
-    save_tendl_data(
-        path: Path,
-        isotopes: Iterable[str] | None = None,
-        Elimit: float = 60,
-        silent: bool = False
-    ) -> None
+    `save_tendl_data`(path: Path, isotopes: Iterable[str] | None = None, Elimit: float = 60, silent: bool = False) -> None:
         Saves Tendl cross-section data for specified isotopes to .npy files.
-    load_tendl_data(
-        path: Path,
-        isotopes: Iterable[str] | None = None,
-        store: bool = True
-    ) -> pd.DataFrame
+    `load_tendl_data`(path: Path, isotopes: Iterable[str] | None = None, store: bool = True) -> pd.DataFrame:
         Loads Tendl cross-section data from .npy files for given isotopes.
-    plot_Cs(
-        title: str,
-        isotopes: pd.DataFrame,
-        low_Cs_threshold: float = 10
-    ) -> Figure
+    `plot_Cs`(title: str, isotopes: pd.DataFrame, low_Cs_threshold: float = 10) -> Figure:
         Plots cross-section data for isotopes, highlighting those above a threshold.
-    filter_products_Cs(
-        isotopes: Iterable[str] | None = None,
-        Cs_threshold: float = 1e-2,
-        E_limit: float | None = 60,
-        E_beam: float | None = None
-    ) -> pd.DataFrame
-    _get_isotope(
-        Z: int,
-        N: int
-    ) -> ci.Isotope
+    `filter_products_Cs`(isotopes: Iterable[str] | None = None, Cs_threshold: float = 1e-2, E_limit: float | None = 60, E_beam: float | None = None) -> pd.DataFrame:
+        Filters isotopes based on cross-section data and thresholds.
+    `_get_isotope`(Z: int, N: int) -> ci.Isotope
         Returns the isotope object for given atomic and neutron numbers.
-    _get_products(
-        target: str | Iterable[str],
-        n_alpha: int = 3
-    ) -> tuple[str]
+    `_get_products`(target: str | Iterable[str], n_alpha: int = 3) -> tuple[str]:
         Generates all product isotopes from a target and particle beam.
-    _filter_products_halflife(
-        isotopes: Iterable[str] | None = None,
-        max_half_life = None,
-        min_half_life = None,
-        grayzone_half_life = None
-    ) -> tuple[list[str], list[str]]
+    `_filter_products_halflife`(isotopes: Iterable[str] | None = None, max_half_life = None, min_half_life = None, grayzone_half_life = None) -> tuple[list[str], list[str]]:
         Filters isotopes based on half-life criteria.
-    _format_dataframe_with_checkboxes(
-        df: pd.DataFrame
-    ) -> pd.DataFrame
+    `_format_dataframe_with_checkboxes`(df: pd.DataFrame) -> pd.DataFrame:
         Formats a DataFrame to display checkboxes for boolean columns.
-    _target_abundance(
-        target: str | Iterable[str] | None = None
-    ) -> dict[str, float]
-    _load_npy(
-        path: Path
-    ) -> tuple[NDArray[float64], NDArray[float64]]
+    `_target_abundance`(target: str | Iterable[str] | None = None) -> dict[str, float]:
+        Returns a dictionary of isotope abundances for the target.
+    `_load_npy`(path: Path) -> tuple[NDArray[float64], NDArray[float64]]:
+        Loads energy and cross-section arrays from a .npy file.
     """
     def __init__(self, 
                  target: str | Iterable[str], 
@@ -155,7 +115,13 @@ class CrossSectionAnalysis:
         
         
     # TODO: Maybe make a single row for "observed", then add "✔", "✘" or "~" for each possible state
-    def isotope_overview(self, isotopes: Iterable[str] | None = None, max_half_life: float | None = None, min_half_life: float | None = None, grayzone_half_life: float | None = None, copy_to_clipboard: bool = False, print_markdown: bool = False) -> pd.DataFrame:
+    def isotope_overview(self, 
+                         isotopes: Iterable[str] | None = None, 
+                         max_half_life: float | None = None, 
+                         min_half_life: float | None = None, 
+                         grayzone_half_life: float | None = None, 
+                         copy_to_clipboard: bool = False, 
+                         print_markdown: bool = False) -> pd.DataFrame:
         """
         Creates an overview of isotopes with their half-lives and observation status.
 
@@ -245,7 +211,11 @@ class CrossSectionAnalysis:
         
         return df
     
-    def save_tendl_data(self, path: Path, isotopes: Iterable[str] | None = None, Elimit: float = 60, silent: bool = False) -> None:
+    def save_tendl_data(self, 
+                        path: Path, 
+                        isotopes: Iterable[str] | None = None, 
+                        Elimit: float = 60, 
+                        silent: bool = False) -> None:
         """
         Saves Tendl cross-section data for specified isotopes to a .npy file.
         
@@ -277,7 +247,10 @@ class CrossSectionAnalysis:
             else:
                 np.save(path / f'{iso_name.title()}.npy', np.array([E, Cs]))
     
-    def load_tendl_data(self, path: Path, isotopes: Iterable[str] | None = None, store: bool = True) -> pd.DataFrame:
+    def load_tendl_data(self, 
+                        path: Path, 
+                        isotopes: Iterable[str] | None = None, 
+                        store: bool = True) -> pd.DataFrame:
         """
         Loads Tendl cross-section data from .npy files in the specified directory for given isotopes.
         
@@ -313,7 +286,10 @@ class CrossSectionAnalysis:
             self.loaded_data = data
         return data
     
-    def plot_Cs(self, title: str, isotopes: pd.DataFrame, low_Cs_threshold: float = 10) -> Figure:
+    def plot_Cs(self, 
+                title: str, 
+                isotopes: pd.DataFrame, 
+                low_Cs_threshold: float = 10) -> Figure:
         """
         Plots cross-section data for isotopes with cross-sections above a specified threshold.
         
@@ -358,7 +334,11 @@ class CrossSectionAnalysis:
         
         return plt.gcf()  # Return the current figure for further manipulation or saving
     
-    def filter_products_Cs(self, isotopes: Iterable[str] | None = None, Cs_threshold: float = 1e-2, E_limit: float | None = 60, E_beam: float | None = None) -> pd.DataFrame:
+    def filter_products_Cs(self, 
+                            isotopes: Iterable[str] | None = None, 
+                            Cs_threshold: float = 1e-2, 
+                            E_limit: float | None = 60, 
+                            E_beam: float | None = None) -> pd.DataFrame:
         """
         Filters isotopes based on cross-section data above a specified threshold.
         
@@ -458,7 +438,10 @@ class CrossSectionAnalysis:
         iso_name = f'{A}{element}'
         return ci.Isotope(iso_name)
         
-    def _get_products(self, target: str | Iterable[str], particle_beam: Literal['proton', 'neutron', 'deuteron'] = 'proton', n_alpha: int = 3) -> tuple[str]:
+    def _get_products(self, 
+                      target: str | Iterable[str], 
+                      particle_beam: Literal['proton', 'neutron', 'deuteron'] = 'proton', 
+                      n_alpha: int = 3) -> tuple[str]:
         """
         Creates a list of all isotopes produced by a particle beam on a target material. Material is assumed to be in natural abundance.
         
@@ -526,7 +509,11 @@ class CrossSectionAnalysis:
                         
         return tuple(product_names)
           
-    def _filter_products_halflife(self, isotopes: Iterable[str] | None = None, max_half_life = None, min_half_life = None, grayzone_half_life = None) -> tuple[list[str], list[str]]:
+    def _filter_products_halflife(self, 
+                                  isotopes: Iterable[str] | None = None, 
+                                  max_half_life = None, 
+                                  min_half_life = None, 
+                                  grayzone_half_life = None) -> tuple[list[str], list[str]]:
         """
         Filters isotopes based on their half-life. Adds the results to the class attributes `observed_isotopes` and `grayzone_isotopes`.
 
@@ -608,7 +595,8 @@ class CrossSectionAnalysis:
             formatted_df[col] = formatted_df[col].apply(lambda x: "✔" if x else "✘")
         return formatted_df
     
-    def _target_abundance(self, target: str | Iterable[str] | None = None) -> dict[str, float]:
+    def _target_abundance(self, 
+                          target: str | Iterable[str] | None = None) -> dict[str, float]:
         """
         Returns the natural abundance of isotopes in the target material.
         
@@ -637,7 +625,8 @@ class CrossSectionAnalysis:
         
         return abundances 
 
-    def _load_npy(self, path: Path) -> tuple[NDArray[float64], NDArray[float64]]:
+    def _load_npy(self, 
+                  path: Path) -> tuple[NDArray[float64], NDArray[float64]]:
         """
         Loads cross-section data from a .npy file.
         
