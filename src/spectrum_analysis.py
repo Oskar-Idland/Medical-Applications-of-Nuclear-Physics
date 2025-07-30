@@ -215,8 +215,6 @@ class SpectrumAnalysis:
         Configuration parameters for peak fitting.
     spectrum_list : NDArray
         Array of Spectrum objects for each measurement loop.
-    real_times : NDArray
-        Array of the actual measurement times for each loop.
     live_times : NDArray
         Array of live measurement times for each loop.
     start_times : list[pd.Timestamp]
@@ -311,7 +309,7 @@ class SpectrumAnalysis:
 
         # Extract job info and run analysis
         self.job_specs = self._get_job_specs()
-        self.spectrum_list, self.real_times, self.live_times, self.start_times, self.time_deltas, self.isotope_energy = self._load_spectrum_files(self.job_specs)
+        self.spectrum_list, self.live_times, self.start_times, self.time_deltas, self.isotope_energy = self._load_spectrum_files(self.job_specs)
         self.Ag108, self.Ag110 = self._calculate_activities(self.spectrum_list)
         self.true_times = self.time_deltas  + self.Δt_d
         self.Ag108.A0, self.Ag108.cov = self._fit_decay_curve(self.Ag108)
@@ -464,7 +462,7 @@ class SpectrumAnalysis:
         return spectrum, spec_path
 
     def _load_spectrum_files(self,
-                        job_specs: dict[str, int]) -> tuple[NDArray, NDArray, NDArray, list[pd.Timestamp], NDArray, set]:
+                        job_specs: dict[str, int]) -> tuple[NDArray, NDArray, list[pd.Timestamp], NDArray, set]:
         """
         Read the spectrum files and return arrays of Spectrum objects and associated measurement data.
 
@@ -482,14 +480,12 @@ class SpectrumAnalysis:
         tuple[NDArray, NDArray, NDArray, list[pd.Timestamp], NDArray, set]
             Containing:
             - spectrum_list: Array of Spectrum objects for each measurement loop
-            - real_times: Array of real measurement times for each loop
             - live_times: Array of live measurement times for each loop
             - start_times: List of measurement start timestamps for each loop
             - time_deltas: Array of time differences (in seconds) from the first measurement
             - isotope_energy: Set of (isotope, energy) tuples found in all spectra
         """
         spectrum_list = []
-        real_times = []
         live_times = []
         start_times = []
         time_deltas = []
@@ -510,7 +506,6 @@ class SpectrumAnalysis:
         
         # Extract data using list comprehensions
         spectrum_list = np.array([spectrum for spectrum, _ in valid_data])
-        real_times = np.array([peaks['real_time'].array[0] for _, peaks in valid_data])
         live_times = np.array([peaks['live_time'].array[0] for _, peaks in valid_data])
         start_times = [pd.Timestamp(peaks['start_time'].array[0]) for _, peaks in valid_data]
         
@@ -524,7 +519,7 @@ class SpectrumAnalysis:
         for _, peaks in valid_data:
             isotope_energy.update(zip(peaks['isotope'].array, peaks['energy'].array))
         
-        return spectrum_list, real_times, live_times, start_times, time_deltas, isotope_energy
+        return spectrum_list, live_times, start_times, time_deltas, isotope_energy
     
     def _process_peak(self,
                       peak_data: dict,
