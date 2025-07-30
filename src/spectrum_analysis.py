@@ -221,8 +221,6 @@ class SpectrumAnalysis:
         Array of time differences between each measurement and the first measurement.
     isotope_energy : set
         Set of tuples containing (isotope, energy) pairs found in the spectra.
-    true_times : NDArray
-        Array of times since the end of irradiation for each measurement.
     Ag108 : IsotopeResults
         Results for Ag-108 isotope measurements and fits.
     Ag110 : IsotopeResults
@@ -309,7 +307,6 @@ class SpectrumAnalysis:
         self.job_specs = self._get_job_specs()
         self.spectrum_list, self.time_deltas, self.isotope_energy = self._load_spectrum_files(self.job_specs)
         self.Ag108, self.Ag110 = self._calculate_activities(self.spectrum_list)
-        self.true_times = self.time_deltas  + self.Δt_d
         self.Ag108.A0, self.Ag108.cov = self._fit_decay_curve(self.Ag108)
         self.Ag110.A0, self.Ag110.cov = self._fit_decay_curve(self.Ag110)
     
