@@ -460,7 +460,7 @@ class SpectrumAnalysis:
         return spectrum, spec_path
 
     def _load_spectrum_files(self,
-                        job_specs: dict[str, int]) -> tuple[NDArray, NDArray, list[pd.Timestamp], NDArray, set]:
+                        job_specs: dict[str, int]) -> tuple[NDArray, list[pd.Timestamp], NDArray, set]:
         """
         Read the spectrum files and return arrays of Spectrum objects and associated measurement data.
 
@@ -514,7 +514,7 @@ class SpectrumAnalysis:
         for _, peaks in valid_data:
             isotope_energy.update(zip(peaks['isotope'].array, peaks['energy'].array))
         
-        return spectrum_list, live_times, start_times, time_deltas, isotope_energy
+        return spectrum_list, start_times, time_deltas, isotope_energy
     
     def _process_peak(self,
                       peak_data: dict,
