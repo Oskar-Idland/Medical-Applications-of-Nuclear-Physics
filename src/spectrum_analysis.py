@@ -233,6 +233,10 @@ class SpectrumAnalysis:
         List of analytical A0 values for Ag-108 measurements.
     A0_analytical_110 : list[float]
         List of analytical A0 values for Ag-110 measurements.
+    A0_analytical_energies_108 : list[float]
+        List of energies corresponding to A0_analytical_108 measurements.
+    A0_analytical_energies_110 : list[float]
+        List of energies corresponding to A0_analytical_110 measurements.
 
     Methods
     -------
@@ -492,7 +496,8 @@ class SpectrumAnalysis:
             '108AG': IsotopeResults('108AG'),
             '110AG': IsotopeResults('110AG')
         }
-        analytical_a0 = {'108AG': [], '110AG': []}
+        analytical_A0 = {'108AG': [], '110AG': []}
+        analytical_energies = {'108AG': [], '110AG': []}
 
         # Process each spectrum
         for spec_idx, (spec, time_delta) in enumerate(zip(spectrums, self.time_deltas)):
@@ -527,13 +532,16 @@ class SpectrumAnalysis:
                         activity=A.nominal_value,
                         uncertainty=A.std_dev
                     )
-                    analytical_a0[iso].append(A0_approx.nominal_value)
+                    analytical_A0[iso].append(A0_approx.nominal_value)
+                    analytical_energies[iso].append(E)
                     
                 else:
                     print(f"Warning: Unrecognized isotope {iso} in spectrum {spec_idx}. Skipping.")
 
-        self.A0_analytical_108 = analytical_a0['108AG']
-        self.A0_analytical_110 = analytical_a0['110AG']
+        self.A0_analytical_108 = analytical_A0['108AG']
+        self.A0_analytical_110 = analytical_A0['110AG']
+        self.A0_analytical_energies_108 = analytical_energies['108AG']
+        self.A0_analytical_energies_110 = analytical_energies['110AG']
 
         return isotope_results['108AG'], isotope_results['110AG']
                
@@ -587,7 +595,7 @@ class SpectrumAnalysis:
 
         try:
             params, cov = curve_fit(
-                lambda t, A0: self._activity_model(t, λ, A0),
+                lambda t, A0: self._activity_model(t, λ, A0),  # type: ignore
                 all_times,
                 all_activities,
                 p0=[estimated_A0],
@@ -667,14 +675,13 @@ class SpectrumAnalysis:
             return
 
         t_min, t_max = min(all_times), max(all_times)
-        time_range = t_max - t_min
         plot_times = np.linspace(max(0, t_min - 0.1), t_max * 1.1, 100)
 
         # Get decay constant
         λ = ci.Isotope(iso_results.isotope).decay_const() 
         
         # Plot fit line
-        fit_line = self._activity_model(plot_times, λ, iso_results.A0.nominal_value)
+        fit_line = self._activity_model(plot_times, λ, iso_results.A0.nominal_value)  # type: ignore
         ax.plot(plot_times, fit_line, "k-", label=f"Combined Fit")
         
         # Plot confidence band
@@ -701,24 +708,51 @@ class SpectrumAnalysis:
         save_fig : bool, optional
             Whether to save the figure to file, by default True.
         """
-        plt.figure()
-        # Plot 108Ag data
-        ax1 = plt.subplot(1, 2, 1)
+        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
+
+        # Plot isotope data
         self._plot_isotope_data(ax1, self.Ag108)
-        
-        # Plot 110Ag data
-        ax2 = plt.subplot(1, 2, 2)
         self._plot_isotope_data(ax2, self.Ag110)
-        
-        plt.suptitle(f'Activity Analysis for {self.spec_filename.stem}')
+
+        plt.suptitle(f"Activity Analysis for {self.spec_filename.stem}")
         plt.tight_layout()
         
         if save_fig:
-            path = self.fig_path / 'activity_analysis' / '{self.spec_filename.stem}'
+            path = self.fig_path / "activity_analysis" / f"{self.spec_filename.stem}"
             path.parent.mkdir(parents=True, exist_ok=True)
-            plt.savefig(path.with_suffix('.pdf'))
-            plt.savefig(path.with_suffix('.png'))
+
+            plt.savefig(path.with_suffix(".pdf"))
+            plt.savefig(path.with_suffix(".png"))
         plt.show()
+
+    def _plot_analytical_A0_for_isotope(self,
+                                         ax: Axes,
+                                         isotope_results: IsotopeResults,
+                                         analytical_A0_list: list[float],
+                                         analytical_energies_list: list[float]) -> None:
+        """
+        Plot the analytical A0 values for a specific isotope.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axes object to plot on.
+        isotope_results : IsotopeResults
+            The results object containing all peaks and fit data for the isotope.
+        analytical_A0_list : list[float]
+            List of analytical A0 values for the isotope.
+        analytical_energies_list : list[float]
+            List of energies corresponding to the analytical A0 values.
+        """
+        for peak in isotope_results.peaks:
+            A0_values = [A0 for E, A0 in zip(analytical_energies_list, analytical_A0_list) if abs(E - peak.energy) < 0.5]
+            ax.plot(range(len(A0_values)), A0_values, "o--", label=f"{peak.energy:.1f} keV")
+        
+        formatted_name = rf"$^{{{isotope_results.isotope[:3]}}}$Ag"
+        ax.set_title(f"Analytical A₀ for {formatted_name}")
+        ax.set_xlabel("Measurement Index")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
     
     def plot_A0_analytical(self, 
                            save_fig: bool = True) -> None:
@@ -732,65 +766,45 @@ class SpectrumAnalysis:
         """
         _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
 
-        # --- Plot for 108Ag ---
-        for peak in self.Ag108.peaks:
-            # Filter the A0 values for the current peak energy
-            a0_values = [a0 for e, a0 in zip(self.A0_analytical_108, self.A0_analytical_108) if abs(e - peak.energy) < 0.5]
-            ax1.plot(range(len(a0_values)), a0_values, 'o--', label=f'{peak.energy:.1f} keV')
-        
-        formatted_iso_name_108 = rf'$^{{{self.Ag108.isotope[:3]}}}$Ag'
-        ax1.set_title(f'Analytical A₀ for {formatted_iso_name_108}')
-        ax1.set_xlabel('Measurement Index')
-        ax1.set_ylabel('Analytical A₀ [Bq]')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
+        # Use the helper method for both isotopes
+        self._plot_analytical_A0_for_isotope(ax1, self.Ag108, self.A0_analytical_108, self.A0_analytical_energies_108)
+        self._plot_analytical_A0_for_isotope(ax2, self.Ag110, self.A0_analytical_110, self.A0_analytical_energies_110)
 
-        # --- Plot for 110Ag ---
-        for peak in self.Ag110.peaks:
-            # Filter the A0 values for the current peak energy
-            a0_values = [a0 for e, a0 in zip(self.A0_analytical_110, self.A0_analytical_110) if abs(e - peak.energy) < 0.5]
-            ax2.plot(range(len(a0_values)), a0_values, 'o--', label=f'{peak.energy:.1f} keV')
+        #Add y-axis label to the first subplot
+        ax1.set_ylabel("Analytical A₀ [Bq]")
 
-        formatted_iso_name_110 = rf'$^{{{self.Ag110.isotope[:3]}}}$Ag'
-        ax2.set_title(f'Analytical A₀ for {formatted_iso_name_110}')
-        ax2.set_xlabel('Measurement Index')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
-
-        plt.suptitle(f'Analytical A₀ Calculation for {self.spec_filename.stem}')
+        plt.suptitle(f"Analytical A₀ Calculation for {self.spec_filename.stem}")
         plt.tight_layout(rect=(0., 0.03, 1., 0.95))
 
         if save_fig:
-            path = self.fig_path / f'{self.spec_filename.stem}_A0_analytical'
-            plt.savefig(path.with_suffix('.pdf'))
-            plt.savefig(path.with_suffix('.png'))
+            path = self.fig_path / f"{self.spec_filename.stem}_A0_analytical"
+            plt.savefig(path.with_suffix(".pdf"))
+            plt.savefig(path.with_suffix(".png"))
         plt.show()
-        
         
     def _activity_model(self, 
                         t: NDArray, 
                         λ: float, 
                         A0: float) -> NDArray:
         """
-        Model for activity decay.
-        
+        Exponential decay model for radioactive activity: A(t) = A₀ · exp(-λt).
+    
         Parameters
         ----------
         t : NDArray
-            Time values.
+            Time values since end of irradiation [s].
         λ : float
-            Decay constant.
+            Decay constant [s⁻¹].
         A0 : float
-            Initial activity at t=0.
+            Initial activity at t=0 [Bq].
             
         Returns
         -------
         NDArray
-            Activity values at given times.
+            Activity values at given times [Bq].
         """
-        return A0*np.exp(-λ*t)
+        return A0 * np.exp(-λ * t)
     
-    # TODO: Contemplate discarding analytical A0 calculation
     def A0_func(self, 
                 N_c: UFloat, 
                 λ: UFloat, 
@@ -799,26 +813,31 @@ class SpectrumAnalysis:
                 Δt_c: float, 
                 Δt_d: float) -> UFloat:
         """
-        Calculate initial activity analytically.
+        Calculate initial activity analytically from gamma-ray spectroscopy measurements.
+        
+        Uses the formula:
+        A₀ = (N_c · λ) / [ε · I_γ · (1 - exp(-λ · Δt_c)) · exp(-λ · Δt_d)]
         
         Parameters
         ----------
         N_c : UFloat
-            Net count rate with uncertainty.
+            Net counts with uncertainty.
         λ : UFloat
-            Decay constant with uncertainty.
+            Decay constant with uncertainty [s⁻¹].
         ε : UFloat
-            Detection efficiency with uncertainty.
+            Detection efficiency (dimensionless) with uncertainty.
         I_γ : UFloat
-            Gamma-ray intensity with uncertainty.
+            Gamma-ray intensity (branching ratio) with uncertainty.
         Δt_c : float
-            Count time (live time).
+            Count time (live time) [s].
         Δt_d : float
-            Delay time since end of irradiation.
+            Delay time since end of irradiation [s].
             
         Returns
         -------
         UFloat
-            Initial activity at end of irradiation with uncertainty.
+            Initial activity at end of irradiation with uncertainty [Bq].
         """
-        return (N_c * λ) / ((ε * I_γ * (1 - uexp(-λ * Δt_c))) * uexp(-λ * Δt_d))  # type: ignore
+        count_rate_correction = (1 - uexp(-λ * Δt_c))  # type: ignore
+        decay_correction = uexp(-λ * Δt_d)  # type: ignore
+        return (N_c * λ) / (ε * I_γ * count_rate_correction * decay_correction)  # type: ignore
