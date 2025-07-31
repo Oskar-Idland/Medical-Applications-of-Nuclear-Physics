@@ -172,7 +172,7 @@ class CrossSectionAnalysis:
         data = []
         for iso in isotope_objects:
             iso_name = iso._short_name
-            status = self._get_isotope_status(iso_name, observed_isotopes, grayzone_isotopes)
+            status = self._get_isotope_status_symbol(iso_name, observed_isotopes, grayzone_isotopes)
 
             unit = iso.optimum_units()
             hf = iso.half_life(units=unit)
@@ -181,18 +181,17 @@ class CrossSectionAnalysis:
             data.append({
                 "Isotope": iso_name.title(),
                 "Half-life": hf_formatted,
-                **status  # Unpack the status dictionary
+                "Status": status
             })
         
         df = pd.DataFrame(data)
-        formatted_df = self._format_dataframe_with_checkboxes(df)
         
         if copy_to_clipboard:
-            markdown_table = formatted_df.to_markdown(index=False)
+            markdown_table = df.to_markdown(index=False)
             pyperclip.copy(markdown_table)
             print("\nMarkdown table copied to clipboard.")
         if print_markdown:
-            markdown_table = formatted_df.to_markdown(index=False)
+            markdown_table = df.to_markdown(index=False)
             print(markdown_table)
         
         return df
@@ -282,10 +281,15 @@ class CrossSectionAnalysis:
             except FileNotFoundError:
                 print(f"Warning: No data file found for {iso}")
         
+        names, energies, cross_sections = zip(*[
+            (iso.title(), data[0], data[1]) 
+            for iso, data in loaded_data.items()
+        ])
+
         df = pd.DataFrame({
-            'Name': [iso.title() for iso in loaded_data.keys()],
-            'E': [data[0] for data in loaded_data.values()],
-            'Cs': [data[1] for data in loaded_data.values()]
+            'Name': names,
+            'E': energies,
+            'Cs': cross_sections
         })
 
         if store:
@@ -326,7 +330,7 @@ class CrossSectionAnalysis:
                 label = f"{ci.Isotope(iso_name.upper()).TeX}"
                 linestyle = linestyles[i % len(linestyles)]
             else:
-                label = rf"{ci.Isotope(iso_name.upper()).TeX}$^{{'*'}}$"
+                label = f"{ci.Isotope(iso_name.upper()).TeX}$^{{'*'}}$"
                 linestyle = ":"
             
             plt.plot(E, Cs,
@@ -380,12 +384,12 @@ class CrossSectionAnalysis:
         filtered_data = self._apply_cs_filter(data, Cs_threshold, E_beam)
         return self._format_filtered_results(filtered_data, Cs_threshold, E_beam)
 
-    def _get_isotope_status(self, 
+    def _get_isotope_status_symbol(self, 
                             iso_name: str, 
                             observed_isotopes: list[str], 
-                            grayzone_isotopes: list[str]) -> dict[str, bool]:
+                            grayzone_isotopes: list[str]) -> str:
         """
-        Determine observation status for an isotope.
+        Get single status symbol for isotope observation status.
         
         Parameters
         ----------
@@ -398,15 +402,15 @@ class CrossSectionAnalysis:
             
         Returns
         -------
-        dict[str, bool]
-            Status flags for the isotope.
+        str
+            Status symbol: "✔" (observed), "~" (maybe), "✘" (not observed).
         """
         if iso_name in observed_isotopes:
-            return {"Observed": True, "Not Observed": False, "Maybe Observed": False}
+            return "✔"  # Observed
         elif iso_name in grayzone_isotopes:
-            return {"Observed": False, "Not Observed": False, "Maybe Observed": True}
+            return "~"  # Maybe observed (grayzone)
         else:
-            return {"Observed": False, "Not Observed": True, "Maybe Observed": False}
+            return "✘"  # Not observed
         
     def _collect_isotope_data(self, 
                               isotopes: Iterable[str] | None, 
@@ -591,7 +595,7 @@ class CrossSectionAnalysis:
     def _get_products(self, 
                       target: str | Iterable[str], 
                       particle_beam: Literal['proton', 'neutron', 'deuteron'] = 'proton', 
-                      n_alpha: int = 3) -> tuple[str]:
+                      n_alpha: int = 3) -> tuple[str, ...]:
         """
         Generate all isotopes produced by particle beam on target.
         
@@ -782,10 +786,11 @@ class CrossSectionAnalysis:
                 )
             }
         elif isinstance(target, Iterable):
-            return {
-                ci.Isotope(iso.upper())._short_name: ci.Isotope(iso.upper()).abundance/100 
-                for iso in target
-            }
+            isotope_data = {}
+            for iso in target:
+                iso_obj = ci.Isotope(iso.upper())
+                isotope_data[iso_obj._short_name] = iso_obj.abundance / 100
+            return isotope_data
         else:
             raise TypeError(f"Target must be str or Iterable[str], got {type(target)}")
 
