@@ -66,7 +66,6 @@ class Tendl:
         -----
         The keys of the `target` dictionary are converted to TENDL format using the `_name_trans_curie_tendl` method.
         """
-        
         self.target = {self._name_trans_curie_tendl(k): v for k, v in target.items()}  # Convert keys to TENDL format
         self.beamParticle = beamParticle
     
