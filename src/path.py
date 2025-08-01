@@ -12,7 +12,6 @@ class Path(_PathBase):
     Wrapper for pathlib.Path to ensure string representation is used
     in certain operations, such as endswith and split.
     """
-
     def endswith(self, suffix: str) -> bool:
         return str(self).endswith(suffix)
 
