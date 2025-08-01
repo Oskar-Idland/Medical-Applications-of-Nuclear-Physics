@@ -10,6 +10,20 @@ from scipy.optimize import curve_fit
 from dataclasses import dataclass, field
 from uncertainties import ufloat, UFloat
 from uncertainties.umath import exp as uexp  # type: ignore
+from typing import NewType
+
+# Custom types for nuclear physics domain
+IsotopeName = NewType('IsotopeName', str)
+Energy = NewType('Energy', float)  # keV
+Activity = NewType('Activity', float)  # Bq
+CountingTime = NewType('CountingTime', float)  # seconds
+DelayTime = NewType('DelayTime', float)  # seconds
+HalfLife = NewType('HalfLife', float)  # seconds
+DecayConstant = NewType('DecayConstant', float)  # s^-1
+Efficiency = NewType('Efficiency', float)  # dimensionless
+Intensity = NewType('Intensity', float)  # gamma-ray branching ratio
+NetCounts = NewType('NetCounts', float)  # counts
+Uncertainty = NewType('Uncertainty', float)  # uncertainty value
 
 
 @dataclass
@@ -19,18 +33,18 @@ class GammaPeak:
 
     Parameters
     ----------
-    energy : float
+    energy : Energy
         The gamma-ray energy in keV.
 
     Attributes
     ----------
-    energy : float
+    energy : Energy
         The gamma-ray energy in keV.
-    times : list[float]
+    times : list[DelayTime]
         List of measurement times in seconds since the end of irradiation.
-    activities : list[float]
+    activities : list[Activity]
         List of measured activities in Bq.
-    uncertainties : list[float]
+    uncertainties : list[Uncertainty]
         List of uncertainties in the measured activities.
     n_measurements : int
         The number of measurements for this peak.
@@ -39,15 +53,15 @@ class GammaPeak:
     -------
     `n_measurements` : property
         Return the number of measurements for this peak.
-    `add_measurement`(time: float, activity: float, uncertainty: float) -> None:
+    `add_measurement`(time: DelayTime, activity: Activity, uncertainty: Uncertainty) -> None:
         Add a new measurement for this energy peak.
 
     """
 
-    energy: float
-    times: list[float] = field(default_factory=list)
-    activities: list[float] = field(default_factory=list)
-    uncertainties: list[float] = field(default_factory=list)
+    energy: Energy
+    times: list[DelayTime] = field(default_factory=list)
+    activities: list[Activity] = field(default_factory=list)
+    uncertainties: list[Uncertainty] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate energy value after initialization."""
@@ -59,17 +73,17 @@ class GammaPeak:
         """Return the number of measurements for this peak."""
         return len(self.times)
 
-    def add_measurement(self, time: float, activity: float, uncertainty: float) -> None:
+    def add_measurement(self, time: DelayTime, activity: Activity, uncertainty: Uncertainty) -> None:
         """
         Add a new measurement for this energy peak.
 
         Parameters
         ----------
-        time : float
+        time : DelayTime
             The measurement time in seconds since the end of irradiation.
-        activity : float
+        activity : Activity
             The measured activity in Bq.
-        uncertainty : float
+        uncertainty : Uncertainty
             The uncertainty in the measured activity.
         """
         self.times.append(time)
@@ -88,7 +102,7 @@ class IsotopeResults:
 
     Parameters
     ----------
-    isotope : str
+    isotope : IsotopeName
         The identifier for the isotope (e.g., '108AG').
     peaks : list[GammaPeak], optional
         A list of `GammaPeak` objects for this isotope. Initialized to an empty list.
@@ -100,7 +114,7 @@ class IsotopeResults:
 
     Attributes
     ----------
-    isotope : str
+    isotope : IsotopeName
         The identifier for the isotope.
     peaks : list[GammaPeak]
         List of `GammaPeak` objects, each containing measurements for a specific
@@ -112,24 +126,24 @@ class IsotopeResults:
 
     Methods
     -------
-    `add_measurement_to_peak`(energy: float, time: float, activity: float, uncertainty: float, tolerance: float = 0.5) -> None:
+    `add_measurement_to_peak`(energy: Energy, time: DelayTime, activity: Activity, uncertainty: Uncertainty, tolerance: Energy = Energy(0.5)) -> None:
         Adds a measurement to an existing peak or creates a new one.
-    `_get_peak`(energy: float, tolerance: float = 0.5) -> GammaPeak | None:
+    `_get_peak`(energy: Energy, tolerance: Energy = Energy(0.5)) -> GammaPeak | None:
         Finds a `GammaPeak` object for a given energy within a tolerance.
     """
 
-    isotope: str
+    isotope: IsotopeName
     peaks: list[GammaPeak] = field(default_factory=list)
     A0: UFloat = ufloat(0, 1e-16)
     cov: NDArray | None = None
 
     def add_measurement_to_peak(
         self,
-        energy: float,
-        time: float,
-        activity: float,
-        uncertainty: float,
-        tolerance: float = 0.5,
+        energy: Energy,
+        time: DelayTime,
+        activity: Activity,
+        uncertainty: Uncertainty,
+        tolerance: Energy = Energy(0.5),
     ) -> None:
         """
         Adds a measurement to an existing peak or creates a new one.
@@ -142,16 +156,16 @@ class IsotopeResults:
 
         Parameters
         ----------
-        energy : float
+        energy : Energy
             The gamma-ray energy of the measurement in keV.
-        time : float
+        time : DelayTime
             The measurement time in seconds since the end of irradiation.
-        activity : float
+        activity : Activity
             The measured activity in Bq.
-        uncertainty : float
+        uncertainty : Uncertainty
             The uncertainty in the measured activity.
-        tolerance : float, optional
-            The tolerance in keV for matching an existing energy peak, by default 0.5.
+        tolerance : Energy, optional
+            The tolerance in keV for matching an existing energy peak, by default Energy(0.5).
         """
         peak = self._get_peak(energy, tolerance)
         if peak is None:
@@ -161,7 +175,7 @@ class IsotopeResults:
 
         peak.add_measurement(time, activity, uncertainty)
 
-    def _get_peak(self, energy: float, tolerance: float = 0.5) -> GammaPeak | None:
+    def _get_peak(self, energy: Energy, tolerance: Energy = Energy(0.5)) -> GammaPeak | None:
         """
         Find a peak with the given energy within the specified tolerance.
         Returns None if no matching peak is found.
@@ -179,18 +193,26 @@ class SpectrumAnalysis:
     This class processes spectra from irradiated samples to calculate activities
     of specific isotopes. It extracts peak information, calculates activities,
     and fits decay curves to determine initial activities at the end of irradiation.
+    
+    Uses domain-specific custom types for improved type safety and code clarity:
+    - IsotopeName: Isotope identifiers (e.g., '108AG', '110AG')
+    - Energy: Gamma-ray energies in keV
+    - Activity: Activity values in Bq
+    - DelayTime: Time delays in seconds
+    - CountingTime: Measurement durations in seconds
+    - And other nuclear physics domain types
 
     Parameters
     ----------
     spec_filepath : str or Path
         Path to the spectrum file(s) without the loop number and extension.
         Expected format: "job{job_number}_Ag{plate_number}_{irradiation_time}min_real{real_time}_loop{num_loops}_"
-    Δt_d : float
+    Δt_d : DelayTime
         Delay time between the end of irradiation and the start of measurement (seconds).
     calibration_source : Path or ci.Calibration, optional
         Either a path to a calibration file or a Calibration object,
         default is 'calibration.json' in the root path.
-    isotopes : list[str], optional
+    isotopes : list[IsotopeName], optional
         List of isotope identifiers to analyze, by default ["108AG", "110AG"].
     root_path : Path, optional
         Root directory for the project, by default uses parent of current file.
@@ -215,11 +237,11 @@ class SpectrumAnalysis:
         Path to the calibration file if a file path was provided.
     cb : ci.Calibration
         Calibration object for energy and efficiency calibration.
-    Δt_d : float
+    Δt_d : DelayTime
         Delay time between irradiation and measurement (seconds).
     job_specs : dict
         Dictionary containing job specifications extracted from the filename.
-    isotopes : list[str]
+    isotopes : list[IsotopeName]
         List of isotopes to analyze.
     fit_config : dict
         Configuration parameters for peak fitting.
@@ -231,11 +253,11 @@ class SpectrumAnalysis:
         Array of time differences between each measurement and the first measurement.
     isotope_energy : set
         Set of tuples containing (isotope, energy) pairs found in the spectra.
-    isotope_results : dict[str, IsotopeResults]
+    isotope_results : dict[IsotopeName, IsotopeResults]
         Dictionary mapping isotope names to their analysis results.
-    analytical_A0 : dict[str, list[float]]
+    analytical_A0 : dict[IsotopeName, list[float]]
         Dictionary mapping isotope names to lists of analytical A0 values.
-    analytical_energies : dict[str, list[float]]
+    analytical_energies : dict[IsotopeName, list[float]]
         Dictionary mapping isotope names to lists of energies corresponding to analytical A0 values.
 
     Methods
@@ -244,13 +266,13 @@ class SpectrumAnalysis:
         Plot activities for each isotope with different colors for different energy peaks.
     `plot_A0_analytical`(save_fig: bool = True) -> None:
         Plot the analytical A0 values for each isotope and peak.
-    `calculate_A0`(N_c: UFloat, λ: UFloat, ε: UFloat, I_γ: UFloat, Δt_c: float, Δt_d: float) -> UFloat:
+    `calculate_A0`(N_c: UFloat, λ: UFloat, ε: UFloat, I_γ: UFloat, Δt_c: CountingTime, Δt_d: DelayTime) -> UFloat:
         Calculate initial activity analytically.
-    `get_isotope_results`(isotope: str) -> IsotopeResults | None:
+    `get_isotope_results`(isotope: IsotopeName) -> IsotopeResults | None:
         Get results for a specific isotope.
-    `get_analytical_A0`(isotope: str) -> list[float]:
+    `get_analytical_A0`(isotope: IsotopeName) -> list[float]:
         Get analytical A0 values for a specific isotope.
-    `get_analytical_energies`(isotope: str) -> list[float]:
+    `get_analytical_energies`(isotope: IsotopeName) -> list[float]:
         Get analytical energies for a specific isotope.
 
     Private Methods
@@ -278,9 +300,9 @@ class SpectrumAnalysis:
     def __init__(
         self,
         spec_filepath: str | Path,
-        Δt_d: float,
+        Δt_d: DelayTime,
         calibration_source: Path | ci.Calibration | None = None,
-        isotopes: list[str] | None = None,
+        isotopes: list[IsotopeName] | None = None,
         root_path: Path | None = None,
         spec_dir: str = "spectra",
         fig_dir: str = "figs",
@@ -320,7 +342,7 @@ class SpectrumAnalysis:
 
         # Core parameters
         self.Δt_d = Δt_d  # Delay time between irradiation and measurement (s)
-        self.isotopes = isotopes or ["108AG", "110AG"]  # Isotopes to analyze (configurable with default)
+        self.isotopes = [IsotopeName(iso) for iso in (isotopes or ["108AG", "110AG"])]  # Isotopes to analyze (configurable with default)
         self.fit_config = fit_config or {"SNR_min": 3.5, "dE_511": 9}  # Configuration for fitting
 
         # Extract job info and run analysis
@@ -406,7 +428,7 @@ class SpectrumAnalysis:
         plt.show()
 
     def calculate_A0(
-        self, N_c: UFloat, λ: UFloat, ε: UFloat, I_γ: UFloat, Δt_c: float, Δt_d: float
+        self, N_c: UFloat, λ: UFloat, ε: UFloat, I_γ: UFloat, Δt_c: CountingTime, Δt_d: DelayTime
     ) -> UFloat:
         """
         Calculate initial activity analytically from gamma-ray spectroscopy measurements.
@@ -424,9 +446,9 @@ class SpectrumAnalysis:
             Detection efficiency (dimensionless) with uncertainty.
         I_γ : UFloat
             Gamma-ray intensity (branching ratio) with uncertainty.
-        Δt_c : float
+        Δt_c : CountingTime
             Count time (live time) [s].
-        Δt_d : float
+        Δt_d : DelayTime
             Delay time since end of irradiation [s].
 
         Returns
@@ -438,13 +460,13 @@ class SpectrumAnalysis:
         decay_correction = uexp(-λ * Δt_d)  # type: ignore
         return (N_c * λ) / (ε * I_γ * count_rate_correction * decay_correction)  # type: ignore
 
-    def get_isotope_results(self, isotope: str) -> IsotopeResults | None:
+    def get_isotope_results(self, isotope: IsotopeName) -> IsotopeResults | None:
         """
         Get results for a specific isotope.
 
         Parameters
         ----------
-        isotope : str
+        isotope : IsotopeName
             Isotope identifier (e.g., '108AG', '110AG').
 
         Returns
@@ -452,15 +474,15 @@ class SpectrumAnalysis:
         IsotopeResults | None
             Results for the specified isotope, or None if not found.
         """
-        return self.isotope_results.get(isotope.upper())
+        return self.isotope_results.get(isotope)
 
-    def get_analytical_A0(self, isotope: str) -> list[float]:
+    def get_analytical_A0(self, isotope: IsotopeName) -> list[float]:
         """
         Get analytical A0 values for a specific isotope.
 
         Parameters
         ----------
-        isotope : str
+        isotope : IsotopeName
             Isotope identifier (e.g., '108AG', '110AG').
 
         Returns
@@ -468,15 +490,15 @@ class SpectrumAnalysis:
         list[float]
             List of analytical A0 values for the isotope.
         """
-        return self.analytical_A0.get(isotope.upper(), [])
+        return self.analytical_A0.get(isotope, [])
 
-    def get_analytical_energies(self, isotope: str) -> list[float]:
+    def get_analytical_energies(self, isotope: IsotopeName) -> list[float]:
         """
         Get analytical energies for a specific isotope.
 
         Parameters
         ----------
-        isotope : str
+        isotope : IsotopeName
             Isotope identifier (e.g., '108AG', '110AG').
 
         Returns
@@ -484,7 +506,7 @@ class SpectrumAnalysis:
         list[float]
             List of energies corresponding to analytical A0 values.
         """
-        return self.analytical_energies.get(isotope.upper(), [])
+        return self.analytical_energies.get(isotope, [])
 
     def _fit_all_decay_curves(self) -> None:
         """
@@ -612,8 +634,8 @@ class SpectrumAnalysis:
         return spectrum_list, time_deltas, isotope_energy
 
     def _process_peak(
-        self, peak_data: dict, true_time: float
-    ) -> tuple[str, float, UFloat, UFloat]:
+        self, peak_data: dict, true_time: DelayTime
+    ) -> tuple[IsotopeName, Energy, UFloat, UFloat]:
         """
         Processes peak data to calculate the activity and approximate initial activity (A0) for a given isotope peak.
 
@@ -630,17 +652,17 @@ class SpectrumAnalysis:
                 - ε (float): Detection efficiency.
                 - unc_ε (float): Uncertainty in efficiency.
                 - lt (float): Live time of the measurement.
-        true_time : float
+        true_time : DelayTime
             The true time of the measurement.
 
         Returns
         -------
-        tuple[str, float, UFloat, UFloat]
+        tuple[IsotopeName, Energy, UFloat, UFloat]
             Containing:
-                - iso (str): Isotope identifier.
-                - E (float): Energy of the peak.
-                            - A (UFloat): Calculated activity with uncertainty.
-                            - A0_approx (UFloat): Approximated initial activity with uncertainty.
+                - iso (IsotopeName): Isotope identifier.
+                - E (Energy): Energy of the peak.
+                - A (UFloat): Calculated activity with uncertainty.
+                - A0_approx (UFloat): Approximated initial activity with uncertainty.
         """
         # Extract peak data
         E, iso, N_c, unc_N_c, I, unc_I, ε, unc_ε, lt = peak_data.values()
@@ -657,13 +679,13 @@ class SpectrumAnalysis:
 
         # Calculate activity and A0
         A = (N_c_u * λ_u) / (ε_u * I_u * (1 - uexp(-λ_u * lt)))  # type: ignore
-        A0_approx = self.calculate_A0(N_c_u, λ_u, ε_u, I_u, lt, true_time)  # type: ignore
+        A0_approx = self.calculate_A0(N_c_u, λ_u, ε_u, I_u, CountingTime(lt), true_time)  # type: ignore
 
-        return iso, E, A, A0_approx
+        return IsotopeName(iso), Energy(E), A, A0_approx
 
     def _calculate_activities(
         self, spectrum_list: NDArray
-    ) -> dict[str, IsotopeResults]:
+    ) -> dict[IsotopeName, IsotopeResults]:
         """
         Calculate activities for each gamma peak in each spectrum.
 
@@ -674,22 +696,22 @@ class SpectrumAnalysis:
 
         Returns
         -------
-        dict[str, IsotopeResults]
+        dict[IsotopeName, IsotopeResults]
             Dictionary mapping isotope names to their IsotopeResults.
         """
         # Initialize results dictionary
-        isotope_results = {}
+        isotope_results: dict[IsotopeName, IsotopeResults] = {}
         for isotope in self.isotopes:
             isotope_results[isotope] = IsotopeResults(isotope)
         
-        self.analytical_A0 = {isotope: [] for isotope in self.isotopes}
-        self.analytical_energies = {isotope: [] for isotope in self.isotopes}
+        self.analytical_A0: dict[IsotopeName, list[float]] = {isotope: [] for isotope in self.isotopes}
+        self.analytical_energies: dict[IsotopeName, list[float]] = {isotope: [] for isotope in self.isotopes}
 
         # Process each spectrum
         for spec_idx, (spec, time_delta) in enumerate(
             zip(spectrum_list, self.time_deltas)
         ):
-            true_time = time_delta + self.Δt_d
+            true_time = DelayTime(time_delta + self.Δt_d)
 
             # Process each peak in the spectrum
             for E, iso, N_c, unc_N_c, I, unc_I, ε, unc_ε, lt in zip(
@@ -717,22 +739,22 @@ class SpectrumAnalysis:
                     "lt": lt,
                 }
 
-                iso, E, A, A0_approx = self._process_peak(peak_data, true_time)
+                iso_name, energy, A, A0_approx = self._process_peak(peak_data, true_time)
 
                 # Add to the appropriate isotope result
-                if iso in isotope_results:
-                    isotope_results[iso].add_measurement_to_peak(
-                        energy=E,
-                        time=true_time,
-                        activity=A.nominal_value,
-                        uncertainty=A.std_dev,
+                if iso_name in isotope_results:
+                    isotope_results[iso_name].add_measurement_to_peak(
+                        energy=energy,
+                        time=DelayTime(true_time),
+                        activity=Activity(A.nominal_value),
+                        uncertainty=Uncertainty(A.std_dev),
                     )
-                    self.analytical_A0[iso].append(A0_approx.nominal_value)
-                    self.analytical_energies[iso].append(E)
+                    self.analytical_A0[iso_name].append(A0_approx.nominal_value)
+                    self.analytical_energies[iso_name].append(energy)
 
                 else:
                     print(
-                        f"Warning: Unrecognized isotope {iso} in spectrum {spec_idx}. Skipping."
+                        f"Warning: Unrecognized isotope {iso_name} in spectrum {spec_idx}. Skipping."
                     )
 
         return isotope_results
@@ -796,7 +818,7 @@ class SpectrumAnalysis:
 
         try:
             params, cov = curve_fit(
-                lambda t, A0: self._exponential_decay_model(t, λ, A0),  # type: ignore
+                lambda t, A0: self._exponential_decay_model(t, DecayConstant(λ), Activity(A0)),  # type: ignore
                 all_times,
                 all_activities,
                 p0=[estimated_A0],
@@ -892,7 +914,7 @@ class SpectrumAnalysis:
         λ = ci.Isotope(isotope_results.isotope).decay_const()
 
         # Plot fit line
-        fit_line = self._exponential_decay_model(plot_times, λ, isotope_results.A0.nominal_value)  # type: ignore
+        fit_line = self._exponential_decay_model(plot_times, DecayConstant(λ), Activity(isotope_results.A0.nominal_value))  # type: ignore
         ax.plot(plot_times, fit_line, "k-", label=f"Combined Fit")
 
         # Plot confidence band
@@ -952,7 +974,7 @@ class SpectrumAnalysis:
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-    def _exponential_decay_model(self, t: NDArray, λ: float, A0: float) -> NDArray:
+    def _exponential_decay_model(self, t: NDArray, λ: DecayConstant, A0: Activity) -> NDArray:
         """
         Exponential decay model for radioactive activity: A(t) = A₀ · exp(-λt).
 
@@ -960,9 +982,9 @@ class SpectrumAnalysis:
         ----------
         t : NDArray
             Time values since end of irradiation [s].
-        λ : float
+        λ : DecayConstant
             Decay constant [s⁻¹].
-        A0 : float
+        A0 : Activity
             Initial activity at t=0 [Bq].
 
         Returns

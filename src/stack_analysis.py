@@ -2,12 +2,23 @@ import curie as ci
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from typing import NewType
 import matplotlib.pyplot as plt
 from numpy.typing import NDArray
 from numpy import float64, int64
 from collections.abc import Callable
 from scipy.constants import Avogadro
 from matplotlib.figure import Figure
+
+# Custom types for nuclear physics data
+IsotopeName = NewType('IsotopeName', str)  # e.g., "67GA", "108AG"
+Energy = NewType('Energy', float)          # Energy in MeV  
+CrossSection = NewType('CrossSection', float)  # Cross-section in mb
+Activity = NewType('Activity', float)     # Activity in Bq
+CountingTime = NewType('CountingTime', float)  # Time in seconds
+DelayTime = NewType('DelayTime', float)   # Time in seconds
+ProtonFlux = NewType('ProtonFlux', float) # Protons/cm²/s
+HalfLife = NewType('HalfLife', str)       # e.g., "2.4 m", "25 s"
 
 
 class StackAnalysis:
@@ -24,24 +35,24 @@ class StackAnalysis:
     ----------
     stack : ci.Stack
         The stack object containing target materials and their areal densities.
-    efficiency_func : Callable
+    efficiency_func : Callable[[Energy], float]
         Function that returns detector efficiency as a function of gamma-ray energy (MeV).
-    proton_flux : float
+    proton_flux : ProtonFlux
         Incident proton flux in protons/cm²/s.
     irradiation_time : float
         Duration of irradiation in seconds.
 
     Methods
     -------
-    `__init__`(stack: ci.Stack, effciency_func: Callable, proton_flux: float = 6.24e11, irradiation_time: float = 60*60) -> None:
+    `__init__`(stack: ci.Stack, efficiency_func: Callable[[Energy], float], proton_flux: ProtonFlux = ProtonFlux(6.24e11), irradiation_time: float = 60*60) -> None:
         Initialize the StackAnalysis object with stack configuration and irradiation parameters.
-    `analyze`(products: dict[str, pd.DataFrame], t_d: NDArray[float64|int64] = np.arange(0, 60*60), t_max: float = 60*60, min_intensity: float = 10.0, dE_511: float = 0.1, silent: bool = True) -> pd.DataFrame:
+    `analyze`(products: dict[str, pd.DataFrame], t_d: NDArray[float64|int64] = np.arange(0, 60*60), t_max: CountingTime = CountingTime(60*60), min_intensity: float = 10.0, dE_511: Energy = Energy(0.1), silent: bool = True) -> pd.DataFrame:
         Analyze the stack to calculate counting times for gamma lines from each foil across specified delay times.
     `plot`(counting_times: pd.DataFrame, target: str | None = None, n_gammas: int = 5, title: str = '') -> Figure:
         Generate plots of counting times versus delay times for the most favorable gamma lines.
-    `_A0`(σ: float | NDArray[float64], N_T: int | NDArray[int64], Φ: float | NDArray[float64], t_irr: float | NDArray[float64], λ: float | NDArray[float64]) -> NDArray[float64]:
+    `_A0`(σ: CrossSection | NDArray[float64], N_T: int | NDArray[int64], Φ: ProtonFlux | NDArray[float64], t_irr: float | NDArray[float64], λ: float | NDArray[float64]) -> Activity | NDArray[float64]:
         Calculate initial activity from nuclear reaction parameters and decay constants.
-    `_counting_time`(A0: float | NDArray[float64], I_γ: float | NDArray[float64], t_d: float | NDArray[float64|int64], ε_γ: float | NDArray[float64], λ: float | NDArray[float64], N_c: int | NDArray[int64] = 10_000) -> float | NDArray[float64]:
+    `_counting_time`(A0: Activity | NDArray[float64], I_γ: float | NDArray[float64], t_d: float | NDArray[float64|int64], ε_γ: float | NDArray[float64], λ: float | NDArray[float64], N_c: int | NDArray[int64] = 10_000) -> CountingTime | NDArray[float64]:
         Determine counting time required to achieve specified count statistics as function of delay time.
     """
 
@@ -51,15 +62,15 @@ class StackAnalysis:
     PERCENT_TO_FRACTION = 0.01  # % -> fraction
 
     stack: ci.Stack
-    efficiency_func: Callable
-    proton_flux: float
+    efficiency_func: Callable[[Energy], float]
+    proton_flux: ProtonFlux
     irradiation_time: float
 
     def __init__(
         self,
         stack: ci.Stack,
-        efficiency_func: Callable,
-        proton_flux: float = 6.24e11,
+        efficiency_func: Callable[[Energy], float],
+        proton_flux: ProtonFlux = ProtonFlux(6.24e11),
         irradiation_time: float = 60 * 60,
     ):
         """
@@ -69,7 +80,9 @@ class StackAnalysis:
         ----------
         stack: ci.Stack
             The stack object containing the materials and their properties.
-        proton_flux: float, optional
+        efficiency_func: Callable[[Energy], float]
+            Function that returns detector efficiency as a function of gamma-ray energy (MeV).
+        proton_flux: ProtonFlux, optional
             The proton flux in protons/cm^2/s. Defaults to 6.24e11.
         irradiation_time: float, optional
             The irradiation time in seconds. Defaults to 60*60 (1 hour).
@@ -83,9 +96,9 @@ class StackAnalysis:
         self,
         products: dict[str, pd.DataFrame],
         t_d: NDArray[float64 | int64] = np.arange(0, 60 * 60),
-        t_max: float = 60 * 60,
+        t_max: CountingTime = CountingTime(60 * 60),
         min_intensity: float = 10.0,
-        dE_511: float = 0.1,
+        dE_511: Energy = Energy(0.1),
         silent: bool = True,
     ) -> pd.DataFrame:
         """
@@ -148,7 +161,7 @@ class StackAnalysis:
 
             A = foil["areal_density"] * self.GRAM_TO_KG  # g/cm^2
             for _, isotope in products[target].iterrows():
-                iso_name = isotope["Name"]
+                iso_name = IsotopeName(isotope["Name"])
                 E = isotope["E"]
                 Cs = isotope["Cs"]
                 iso = ci.Isotope(iso_name.upper())
@@ -161,14 +174,14 @@ class StackAnalysis:
                 idx = np.abs(
                     E - foil.mu_E
                 ).argmin()  # Find the index of the closest energy to the beam energy
-                σ = Cs[idx] * self.MILLIBARN_TO_CM2
+                σ = CrossSection(Cs[idx] * self.MILLIBARN_TO_CM2)
 
                 A0 = self._A0(σ, N_T, self.proton_flux, self.irradiation_time, λ)  # Bq
 
                 for _, gamma in iso.gammas(
                     I_lim=min_intensity, dE_511=dE_511
                 ).iterrows():
-                    E_γ = gamma["energy"]  # MeV
+                    E_γ = Energy(gamma["energy"])  # MeV
                     I_γ = (
                         gamma["intensity"] * self.PERCENT_TO_FRACTION
                     )  # Convert to fraction
@@ -193,12 +206,12 @@ class StackAnalysis:
 
                     unit = iso.optimum_units()
                     entry = {
-                        "t_c0": t_c[0],
+                        "t_c0": CountingTime(t_c[0]),
                         "gamma_energy": E_γ,
                         "isotope": iso_name,
                         "target": target,
                         "foil_number": foil["name"][-2:],
-                        "half_life": f"{iso.half_life(unit):.2g} {unit}",
+                        "half_life": HalfLife(f"{iso.half_life(unit):.2g} {unit}"),
                         "t_c": t_c,
                         "t_d": t_d,
                     }
@@ -274,12 +287,12 @@ class StackAnalysis:
 
     def _A0(
         self,
-        σ: float | NDArray[float64],
+        σ: CrossSection | NDArray[float64],
         N_T: int | NDArray[int64],
-        Φ: float | NDArray[float64],
+        Φ: ProtonFlux | NDArray[float64],
         t_irr: float | NDArray[float64],
         λ: float | NDArray[float64],
-    ) -> float | NDArray[float64]:
+    ) -> Activity | NDArray[float64]:
         """
         Calculates the activity A0 from the cross-section σ, target atom density N_T, flux Φ, irradiation time t_irr, and decay constant λ. `t_irr` and `λ` can be either a float or a numpy array. If both are arrays, they must have the same shape.
 
@@ -314,13 +327,13 @@ class StackAnalysis:
 
     def _counting_time(
         self,
-        A0: float | NDArray[float64],
+        A0: Activity | NDArray[float64],
         I_γ: float | NDArray[float64],
         t_d: float | NDArray[float64 | int64],
         ε_γ: float | NDArray[float64],
         λ: float | NDArray[float64],
         N_c: int | NDArray[int64] = 10_000,
-    ) -> float | NDArray[float64]:
+    ) -> CountingTime | NDArray[float64]:
         """
         Calculates the counting time t_c to count N_c decays, as a function of delay time t_d. All arrays passed for `A0`, `I_γ`, `t_d`, `ε_γ`, `λ` or `N_c` must all have the same shape.
 

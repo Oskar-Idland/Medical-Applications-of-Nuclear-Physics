@@ -553,7 +553,7 @@ class CrossSectionAnalysis:
             Filtered dictionary containing only isotopes that meet the threshold condition.
         """
         if E_beam is None:
-            condition = lambda E, Cs: np.max(Cs) > Cs_threshold
+            condition = lambda _, Cs: np.max(Cs) > Cs_threshold
         else:
             condition = lambda E, Cs: Cs[np.abs(E - E_beam).argmin()] > Cs_threshold
 
