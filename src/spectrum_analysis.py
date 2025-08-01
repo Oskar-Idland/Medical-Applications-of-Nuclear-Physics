@@ -34,37 +34,35 @@ class GammaPeak:
         List of uncertainties in the measured activities.
     n_measurements : int
         The number of measurements for this peak.
-        
+
     Methods
     -------
     `n_measurements` : property
         Return the number of measurements for this peak.
     `add_measurement`(time: float, activity: float, uncertainty: float) -> None:
         Add a new measurement for this energy peak.
-    
+
     """
+
     energy: float
     times: list[float] = field(default_factory=list)
     activities: list[float] = field(default_factory=list)
     uncertainties: list[float] = field(default_factory=list)
-    
+
     def __post_init__(self):
         """Validate energy value after initialization."""
         if self.energy <= 0:
             raise ValueError(f"Energy must be positive, got {self.energy}")
-    
+
     @property
     def n_measurements(self) -> int:
         """Return the number of measurements for this peak."""
         return len(self.times)
-        
-    def add_measurement(self,
-                        time: float,
-                        activity: float,
-                        uncertainty: float) -> None:
+
+    def add_measurement(self, time: float, activity: float, uncertainty: float) -> None:
         """
         Add a new measurement for this energy peak.
-        
+
         Parameters
         ----------
         time : float
@@ -77,6 +75,7 @@ class GammaPeak:
         self.times.append(time)
         self.activities.append(activity)
         self.uncertainties.append(uncertainty)
+
 
 @dataclass
 class IsotopeResults:
@@ -118,17 +117,20 @@ class IsotopeResults:
     `_get_peak`(energy: float, tolerance: float = 0.5) -> GammaPeak | None:
         Finds a `GammaPeak` object for a given energy within a tolerance.
     """
+
     isotope: str
     peaks: list[GammaPeak] = field(default_factory=list)
     A0: UFloat = ufloat(0, 1e-16)
     cov: NDArray | None = None
-    
-    def add_measurement_to_peak(self,
-                           energy: float,
-                           time: float,
-                           activity: float, 
-                           uncertainty: float,
-                           tolerance: float = 0.5) -> None:
+
+    def add_measurement_to_peak(
+        self,
+        energy: float,
+        time: float,
+        activity: float,
+        uncertainty: float,
+        tolerance: float = 0.5,
+    ) -> None:
         """
         Adds a measurement to an existing peak or creates a new one.
 
@@ -156,12 +158,10 @@ class IsotopeResults:
             # Create a new peak
             peak = GammaPeak(energy=energy)
             self.peaks.append(peak)
-        
+
         peak.add_measurement(time, activity, uncertainty)
-    
-    def _get_peak(self,
-                  energy: float,
-                  tolerance: float = 0.5) -> GammaPeak | None:
+
+    def _get_peak(self, energy: float, tolerance: float = 0.5) -> GammaPeak | None:
         """
         Find a peak with the given energy within the specified tolerance.
         Returns None if no matching peak is found.
@@ -188,7 +188,7 @@ class SpectrumAnalysis:
     Δt_d : float
         Delay time between the end of irradiation and the start of measurement (seconds).
     calibration_source : Path or ci.Calibration, optional
-        Either a path to a calibration file or a Calibration object, 
+        Either a path to a calibration file or a Calibration object,
         default is 'calibration.json' in the root path.
 
     Attributes
@@ -265,14 +265,16 @@ class SpectrumAnalysis:
         Model for activity decay.
     """
 
-    def __init__(self,
-                 spec_filepath: str | Path,
-                 Δt_d: float,
-                 calibration_source: Path | ci.Calibration | None = None,
-                 root_path: Path | None = None,
-                 spec_dir: str = "spectra",
-                 fig_dir: str = "figs") -> None:
-        
+    def __init__(
+        self,
+        spec_filepath: str | Path,
+        Δt_d: float,
+        calibration_source: Path | ci.Calibration | None = None,
+        root_path: Path | None = None,
+        spec_dir: str = "spectra",
+        fig_dir: str = "figs",
+    ) -> None:
+
         # Setup paths
         self.root_path = root_path or Path(__file__).parent.parent
         self.spec_base_path = self.root_path / spec_dir
@@ -282,10 +284,14 @@ class SpectrumAnalysis:
         self.spec_filepath = Path(spec_filepath)
 
         # Validate spectrum file existence
-        spec_path_first_loop = self.spec_filepath.with_name(self.spec_filepath.name + "_000.Spe")
+        spec_path_first_loop = self.spec_filepath.with_name(
+            self.spec_filepath.name + "_000.Spe"
+        )
         if not spec_path_first_loop.is_file():
-            raise FileNotFoundError(f"First loop of spectrum file not found: {spec_path_first_loop}")
-        
+            raise FileNotFoundError(
+                f"First loop of spectrum file not found: {spec_path_first_loop}"
+            )
+
         # Setup calibration
         calibration_source = calibration_source or (self.root_path / "calibration.json")
 
@@ -295,26 +301,29 @@ class SpectrumAnalysis:
         else:
             self.calib_path = calibration_source
             if not self.calib_path.is_file():
-                raise FileNotFoundError(f"Calibration file not found: {self.calib_path}")
+                raise FileNotFoundError(
+                    f"Calibration file not found: {self.calib_path}"
+                )
             self.cb = ci.Calibration(self.calib_path)
-        
+
         # Core parameters
         self.Δt_d = Δt_d  # Delay time between irradiation and measurement (s)
         self.isotopes = ["108AG", "110AG"]  # Isotopes to analyze
-        self.fit_config = {'SNR_min': 3.5, 'dE_511': 9}  # Configuration for fitting
+        self.fit_config = {"SNR_min": 3.5, "dE_511": 9}  # Configuration for fitting
 
         # Extract job info and run analysis
         self.job_specs = self._get_job_specs()
-        self.spectrum_list, self.time_deltas, self.isotope_energy = self._load_spectrum_files(self.job_specs)
+        self.spectrum_list, self.time_deltas, self.isotope_energy = (
+            self._load_spectrum_files(self.job_specs)
+        )
         self.Ag108, self.Ag110 = self._calculate_activities(self.spectrum_list)
         self.Ag108.A0, self.Ag108.cov = self._fit_decay_curve(self.Ag108)
         self.Ag110.A0, self.Ag110.cov = self._fit_decay_curve(self.Ag110)
-    
-    def plot_activity(self, 
-                      save_fig: bool = True) -> None:
+
+    def plot_activity(self, save_fig: bool = True) -> None:
         """
         Plot activities for each isotope, with different colors for different energy peaks.
-        
+
         Parameters
         ----------
         save_fig : bool, optional
@@ -328,7 +337,7 @@ class SpectrumAnalysis:
 
         plt.suptitle(f"Activity Analysis for {self.spec_filepath.stem}")
         plt.tight_layout()
-        
+
         if save_fig:
             path = self.fig_path / "activity_analysis" / f"{self.spec_filepath.stem}"
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -336,12 +345,11 @@ class SpectrumAnalysis:
             plt.savefig(path.with_suffix(".pdf"))
             plt.savefig(path.with_suffix(".png"))
         plt.show()
-    
-    def plot_A0_analytical(self, 
-                           save_fig: bool = True) -> None:
+
+    def plot_A0_analytical(self, save_fig: bool = True) -> None:
         """
         Plot the analytical A0 values for each isotope and peak.
-        
+
         Parameters
         ----------
         save_fig : bool, optional
@@ -350,34 +358,34 @@ class SpectrumAnalysis:
         _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
 
         # Use the helper method for both isotopes
-        self._plot_analytical_A0_for_isotope(ax1, self.Ag108, self.A0_analytical_108, self.A0_analytical_energies_108)
-        self._plot_analytical_A0_for_isotope(ax2, self.Ag110, self.A0_analytical_110, self.A0_analytical_energies_110)
+        self._plot_analytical_A0_for_isotope(
+            ax1, self.Ag108, self.A0_analytical_108, self.A0_analytical_energies_108
+        )
+        self._plot_analytical_A0_for_isotope(
+            ax2, self.Ag110, self.A0_analytical_110, self.A0_analytical_energies_110
+        )
 
-        #Add y-axis label to the first subplot
+        # Add y-axis label to the first subplot
         ax1.set_ylabel("Analytical A₀ [Bq]")
 
         plt.suptitle(f"Analytical A₀ Calculation for {self.spec_filepath.stem}")
-        plt.tight_layout(rect=(0., 0.03, 1., 0.95))
+        plt.tight_layout(rect=(0.0, 0.03, 1.0, 0.95))
 
         if save_fig:
             path = self.fig_path / f"{self.spec_filepath.stem}_A0_analytical"
             plt.savefig(path.with_suffix(".pdf"))
             plt.savefig(path.with_suffix(".png"))
         plt.show()
-    
-    def calculate_A0(self, 
-                N_c: UFloat, 
-                λ: UFloat, 
-                ε: UFloat, 
-                I_γ: UFloat, 
-                Δt_c: float, 
-                Δt_d: float) -> UFloat:
+
+    def calculate_A0(
+        self, N_c: UFloat, λ: UFloat, ε: UFloat, I_γ: UFloat, Δt_c: float, Δt_d: float
+    ) -> UFloat:
         """
         Calculate initial activity analytically from gamma-ray spectroscopy measurements.
-        
+
         Uses the formula:
         A₀ = (N_c · λ) / [ε · I_γ · (1 - exp(-λ · Δt_c)) · exp(-λ · Δt_d)]
-        
+
         Parameters
         ----------
         N_c : UFloat
@@ -392,16 +400,15 @@ class SpectrumAnalysis:
             Count time (live time) [s].
         Δt_d : float
             Delay time since end of irradiation [s].
-            
+
         Returns
         -------
         UFloat
             Initial activity at end of irradiation with uncertainty [Bq].
         """
-        count_rate_correction = (1 - uexp(-λ * Δt_c))  # type: ignore
+        count_rate_correction = 1 - uexp(-λ * Δt_c)  # type: ignore
         decay_correction = uexp(-λ * Δt_d)  # type: ignore
         return (N_c * λ) / (ε * I_γ * count_rate_correction * decay_correction)  # type: ignore
-    
 
     def _get_job_specs(self) -> dict[str, int]:
         """
@@ -413,7 +420,7 @@ class SpectrumAnalysis:
             - Z: irradiation time in minutes (e.g., '1min')
             - W: real time in minutes (e.g., 'real10')
             - V: number of loops (e.g., 'loop6')
-            
+
         Returns
         -------
         dict[str, int]
@@ -424,18 +431,19 @@ class SpectrumAnalysis:
             - 'real_time' (int): The real time in minutes.
             - 'num_loops' (int): The number of loops.
         """
-        parts = self.spec_filepath.stem.split('_')
+        parts = self.spec_filepath.stem.split("_")
 
         return {
-            'job_number': int(parts[0][3:]),  
-            'plate_number': int(parts[1][2:]), 
-            'irradiation_time': int(parts[2][0]), 
-            'real_time': int(parts[3][4:]),  
-            'num_loops': int(parts[4][4:])
+            "job_number": int(parts[0][3:]),
+            "plate_number": int(parts[1][2:]),
+            "irradiation_time": int(parts[2][0]),
+            "real_time": int(parts[3][4:]),
+            "num_loops": int(parts[4][4:]),
         }
 
-    def _create_configured_spectrum(self,
-                                    loop_index: int) -> tuple[ci.Spectrum, pathlib.Path]:
+    def _create_configured_spectrum(
+        self, loop_index: int
+    ) -> tuple[ci.Spectrum, pathlib.Path]:
         """
         Create and configure a Spectrum object for a specific measurement loop.
 
@@ -449,15 +457,18 @@ class SpectrumAnalysis:
         tuple[ci.Spectrum, pathlib.Path]
             A tuple containing the configured Spectrum object and its file path.
         """
-        spec_path = self.spec_filepath.with_name(f"{self.spec_filepath.stem}_{loop_index:03d}.Spe")
+        spec_path = self.spec_filepath.with_name(
+            f"{self.spec_filepath.stem}_{loop_index:03d}.Spe"
+        )
         spectrum = ci.Spectrum(spec_path)
         spectrum.cb = self.cb
         spectrum.isotopes = self.isotopes
         spectrum.fit_config = self.fit_config
         return spectrum, spec_path
 
-    def _load_spectrum_files(self,
-                        job_specs: dict[str, int]) -> tuple[NDArray, NDArray, set]:
+    def _load_spectrum_files(
+        self, job_specs: dict[str, int]
+    ) -> tuple[NDArray, NDArray, set]:
         """
         Read the spectrum files and return arrays of Spectrum objects and associated measurement data.
 
@@ -486,39 +497,44 @@ class SpectrumAnalysis:
 
         # First, collect all valid spectrum-peak pairs
         valid_data = []
-        num_loops = job_specs['num_loops']
+        num_loops = job_specs["num_loops"]
         for i in range(num_loops):
             spectrum, spec_path = self._create_configured_spectrum(i)
             peaks = spectrum.peaks
-            
+
             if peaks is None:
                 print(f"Warning: No peaks found in spectrum {spec_path}. Skipping.")
                 continue
-                
+
             valid_data.append((spectrum, peaks))
-        
+
         # Extract data using list comprehensions
         spectrum_list = np.array([spectrum for spectrum, _ in valid_data])
-        start_times = [pd.Timestamp(peaks['start_time'].array[0]) for _, peaks in valid_data]
-        
+        start_times = [
+            pd.Timestamp(peaks["start_time"].array[0]) for _, peaks in valid_data
+        ]
+
         # Calculate time deltas
-        time_deltas = np.array([0] + [
-            pd.Timedelta(start_times[i] - start_times[i-1]).total_seconds() 
-            for i in range(1, len(start_times))
-        ])
+        time_deltas = np.array(
+            [0]
+            + [
+                pd.Timedelta(start_times[i] - start_times[i - 1]).total_seconds()
+                for i in range(1, len(start_times))
+            ]
+        )
 
         # Collect all unique isotope-energy pairs
         for _, peaks in valid_data:
-            isotope_energy.update(zip(peaks['isotope'].array, peaks['energy'].array))
-        
+            isotope_energy.update(zip(peaks["isotope"].array, peaks["energy"].array))
+
         return spectrum_list, time_deltas, isotope_energy
-    
-    def _process_peak(self,
-                      peak_data: dict,
-                      true_time: float) -> tuple[str, float, UFloat, UFloat]:
+
+    def _process_peak(
+        self, peak_data: dict, true_time: float
+    ) -> tuple[str, float, UFloat, UFloat]:
         """
         Processes peak data to calculate the activity and approximate initial activity (A0) for a given isotope peak.
-        
+
         Parameters
         ----------
         peak_data : dict
@@ -563,16 +579,17 @@ class SpectrumAnalysis:
 
         return iso, E, A, A0_approx
 
-    def _calculate_activities(self, 
-                              spectrum_list: NDArray) -> tuple[IsotopeResults, IsotopeResults]:
+    def _calculate_activities(
+        self, spectrum_list: NDArray
+    ) -> tuple[IsotopeResults, IsotopeResults]:
         """
         Calculate activities for each gamma peak in each spectrum.
-        
+
         Parameters
         ----------
         spectrum_list : NDArray
             Array of Spectrum objects to analyze.
-            
+
         Returns
         -------
         tuple[IsotopeResults, IsotopeResults]
@@ -580,33 +597,42 @@ class SpectrumAnalysis:
         """
         # Initialize results dictionary
         isotope_results = {
-            '108AG': IsotopeResults("108AG"),
-            '110AG': IsotopeResults("110AG")
+            "108AG": IsotopeResults("108AG"),
+            "110AG": IsotopeResults("110AG"),
         }
-        analytical_A0 = {'108AG': [], '110AG': []}
-        analytical_energies = {'108AG': [], '110AG': []}
+        analytical_A0 = {"108AG": [], "110AG": []}
+        analytical_energies = {"108AG": [], "110AG": []}
 
         # Process each spectrum
-        for spec_idx, (spec, time_delta) in enumerate(zip(spectrum_list, self.time_deltas)):
+        for spec_idx, (spec, time_delta) in enumerate(
+            zip(spectrum_list, self.time_deltas)
+        ):
             true_time = time_delta + self.Δt_d
-            
+
             # Process each peak in the spectrum
             for E, iso, N_c, unc_N_c, I, unc_I, ε, unc_ε, lt in zip(
-                    spec.peaks['energy'].array, 
-                    spec.peaks['isotope'],
-                    spec.peaks['counts'].array, 
-                    spec.peaks['unc_counts'].array, 
-                    spec.peaks['intensity'].array, 
-                    spec.peaks['unc_intensity'].array, 
-                    spec.peaks['efficiency'].array, 
-                    spec.peaks['unc_efficiency'].array, 
-                    spec.peaks['live_time'].array,
+                spec.peaks["energy"].array,
+                spec.peaks["isotope"],
+                spec.peaks["counts"].array,
+                spec.peaks["unc_counts"].array,
+                spec.peaks["intensity"].array,
+                spec.peaks["unc_intensity"].array,
+                spec.peaks["efficiency"].array,
+                spec.peaks["unc_efficiency"].array,
+                spec.peaks["live_time"].array,
             ):
-                
+
                 # Create peak data dictionary
                 peak_data = {
-                    'E': E, 'iso': iso, 'N_c': N_c, 'unc_N_c': unc_N_c,
-                    'I': I, 'unc_I': unc_I, 'ε': ε, 'unc_ε': unc_ε, 'lt': lt
+                    "E": E,
+                    "iso": iso,
+                    "N_c": N_c,
+                    "unc_N_c": unc_N_c,
+                    "I": I,
+                    "unc_I": unc_I,
+                    "ε": ε,
+                    "unc_ε": unc_ε,
+                    "lt": lt,
                 }
 
                 iso, E, A, A0_approx = self._process_peak(peak_data, true_time)
@@ -614,26 +640,29 @@ class SpectrumAnalysis:
                 # Add to the appropriate isotope result
                 if iso in isotope_results:
                     isotope_results[iso].add_measurement_to_peak(
-                        energy=E, 
+                        energy=E,
                         time=true_time,
                         activity=A.nominal_value,
-                        uncertainty=A.std_dev
+                        uncertainty=A.std_dev,
                     )
                     analytical_A0[iso].append(A0_approx.nominal_value)
                     analytical_energies[iso].append(E)
-                    
+
                 else:
-                    print(f"Warning: Unrecognized isotope {iso} in spectrum {spec_idx}. Skipping.")
+                    print(
+                        f"Warning: Unrecognized isotope {iso} in spectrum {spec_idx}. Skipping."
+                    )
 
-        self.A0_analytical_108 = analytical_A0['108AG']
-        self.A0_analytical_110 = analytical_A0['110AG']
-        self.A0_analytical_energies_108 = analytical_energies['108AG']
-        self.A0_analytical_energies_110 = analytical_energies['110AG']
+        self.A0_analytical_108 = analytical_A0["108AG"]
+        self.A0_analytical_110 = analytical_A0["110AG"]
+        self.A0_analytical_energies_108 = analytical_energies["108AG"]
+        self.A0_analytical_energies_110 = analytical_energies["110AG"]
 
-        return isotope_results['108AG'], isotope_results['110AG']
-               
-    def _fit_decay_curve(self, 
-                               isotope_results: IsotopeResults) -> tuple[UFloat, NDArray]:
+        return isotope_results["108AG"], isotope_results["110AG"]
+
+    def _fit_decay_curve(
+        self, isotope_results: IsotopeResults
+    ) -> tuple[UFloat, NDArray]:
         """
         Fit the activity decay curve using all measurements from all peaks for a given isotope.
 
@@ -660,12 +689,20 @@ class SpectrumAnalysis:
             If the optimization fails to converge.
         """
         # Collect all times, activities, and uncertainties from all peaks
-        all_times = np.array([time for peak in isotope_results.peaks for time in peak.times])
-        all_activities = np.array([activity for peak in isotope_results.peaks for activity in peak.activities])
-        all_uncertainties = np.array([unc for peak in isotope_results.peaks for unc in peak.uncertainties])
-                    
+        all_times = np.array(
+            [time for peak in isotope_results.peaks for time in peak.times]
+        )
+        all_activities = np.array(
+            [activity for peak in isotope_results.peaks for activity in peak.activities]
+        )
+        all_uncertainties = np.array(
+            [unc for peak in isotope_results.peaks for unc in peak.uncertainties]
+        )
+
         if len(all_times) == 0:
-            raise ValueError(f"No measurements found for isotope {isotope_results.isotope}. Cannot fit activity curve.")
+            raise ValueError(
+                f"No measurements found for isotope {isotope_results.isotope}. Cannot fit activity curve."
+            )
 
         # Sorts all data by time
         sort_indices = np.argsort(all_times)
@@ -687,25 +724,29 @@ class SpectrumAnalysis:
                 all_activities,
                 p0=[estimated_A0],
                 bounds=([0], [np.inf]),
-                sigma=all_uncertainties, 
-                absolute_sigma=True
+                sigma=all_uncertainties,
+                absolute_sigma=True,
             )
             A0 = ufloat(params[0], np.sqrt(cov[0, 0]))
             return A0, cov
-        
+
         except ValueError as e:
             if "NaN" in str(e) or "inf" in str(e):
-                raise ValueError(f"Invalid data for {isotope_results.isotope}: {str(e)}")
+                raise ValueError(
+                    f"Invalid data for {isotope_results.isotope}: {str(e)}"
+                )
             else:
-                raise ValueError(f"Curve fitting failed for {isotope_results.isotope}: {str(e)}")
+                raise ValueError(
+                    f"Curve fitting failed for {isotope_results.isotope}: {str(e)}"
+                )
 
         except RuntimeError as e:
-            raise RuntimeError(f"Optimization failed for {isotope_results.isotope}: {str(e)}. "
-                               f"Try different initial parameters or check data quality. Error: {str(e)}")
+            raise RuntimeError(
+                f"Optimization failed for {isotope_results.isotope}: {str(e)}. "
+                f"Try different initial parameters or check data quality. Error: {str(e)}"
+            )
 
-    def _plot_activity_decay(self, 
-                           ax: Axes, 
-                           isotope_results: IsotopeResults) -> None:
+    def _plot_activity_decay(self, ax: Axes, isotope_results: IsotopeResults) -> None:
         """
         Plot activity data and fit for a specific isotope.
 
@@ -725,35 +766,41 @@ class SpectrumAnalysis:
         if not isotope_results.peaks:
             print(f"No peaks found for {isotope_results.isotope}")
             return
-        
+
         # Check if A0 is valid
         if isotope_results.A0.nominal_value <= 0:
-            print(f"Warning: Invalid A0 value for {isotope_results.isotope}: {isotope_results.A0}")
+            print(
+                f"Warning: Invalid A0 value for {isotope_results.isotope}: {isotope_results.A0}"
+            )
 
         # Check if some peaks were excluded
-        excluded_peaks = [peak for peak in isotope_results.peaks if peak.n_measurements == 0]
+        excluded_peaks = [
+            peak for peak in isotope_results.peaks if peak.n_measurements == 0
+        ]
         if excluded_peaks:
-            print(f"Warning: Found {len(excluded_peaks)} peaks excluded from analysis for {isotope_results.isotope} (likely below SNR threshold)")
+            print(
+                f"Warning: Found {len(excluded_peaks)} peaks excluded from analysis for {isotope_results.isotope} (likely below SNR threshold)"
+            )
 
         # Use a different color for each energy peak
         cmap = plt.get_cmap("tab10")
         colors = cmap(np.linspace(0, 1, len(isotope_results.peaks)))
-        
+
         # Plot each energy peak with its own color
         for i, peak in enumerate(isotope_results.peaks):
             # if peak.n_measurements > 0:
             label = f"{peak.energy:.1f} keV"
             ax.errorbar(
-                peak.times, 
-                peak.activities, 
-                yerr=peak.uncertainties, 
-                fmt="o:", 
+                peak.times,
+                peak.activities,
+                yerr=peak.uncertainties,
+                fmt="o:",
                 capsize=5,
                 color=colors[i],
                 label=label,
-                alpha=1-.2*i,  # Decrease alpha for each peak
+                alpha=1 - 0.2 * i,  # Decrease alpha for each peak
             )
-        
+
         # Get time range for plotting
         all_times = [time for peak in isotope_results.peaks for time in peak.times]
 
@@ -765,18 +812,24 @@ class SpectrumAnalysis:
         plot_times = np.linspace(max(0, t_min - 0.1), t_max * 1.1, 100)
 
         # Get decay constant
-        λ = ci.Isotope(isotope_results.isotope).decay_const() 
-        
+        λ = ci.Isotope(isotope_results.isotope).decay_const()
+
         # Plot fit line
         fit_line = self._exponential_decay_model(plot_times, λ, isotope_results.A0.nominal_value)  # type: ignore
         ax.plot(plot_times, fit_line, "k-", label=f"Combined Fit")
-        
+
         # Plot confidence band
-        fit_unc = np.abs(fit_line * (isotope_results.A0.std_dev / isotope_results.A0.nominal_value))
-        ax.fill_between(plot_times, 
-                    fit_line - fit_unc, 
-                    fit_line + fit_unc, 
-                    color="gray", alpha=0.3, label="1σ Confidence Band")
+        fit_unc = np.abs(
+            fit_line * (isotope_results.A0.std_dev / isotope_results.A0.nominal_value)
+        )
+        ax.fill_between(
+            plot_times,
+            fit_line - fit_unc,
+            fit_line + fit_unc,
+            color="gray",
+            alpha=0.3,
+            label="1σ Confidence Band",
+        )
 
         formatted_iso_name = rf"$^{{{isotope_results.isotope[:3]}}}$Ag"
         ax.set_title(formatted_iso_name + f"\nA₀={isotope_results.A0:.2uP} Bq")
@@ -785,11 +838,13 @@ class SpectrumAnalysis:
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-    def _plot_analytical_A0_for_isotope(self,
-                                         ax: Axes,
-                                         isotope_results: IsotopeResults,
-                                         analytical_A0_list: list[float],
-                                         analytical_energies_list: list[float]) -> None:
+    def _plot_analytical_A0_for_isotope(
+        self,
+        ax: Axes,
+        isotope_results: IsotopeResults,
+        analytical_A0_list: list[float],
+        analytical_energies_list: list[float],
+    ) -> None:
         """
         Plot the analytical A0 values for a specific isotope.
 
@@ -805,22 +860,25 @@ class SpectrumAnalysis:
             List of energies corresponding to the analytical A0 values.
         """
         for peak in isotope_results.peaks:
-            A0_values = [A0 for E, A0 in zip(analytical_energies_list, analytical_A0_list) if abs(E - peak.energy) < 0.5]
-            ax.plot(range(len(A0_values)), A0_values, "o--", label=f"{peak.energy:.1f} keV")
-        
+            A0_values = [
+                A0
+                for E, A0 in zip(analytical_energies_list, analytical_A0_list)
+                if abs(E - peak.energy) < 0.5
+            ]
+            ax.plot(
+                range(len(A0_values)), A0_values, "o--", label=f"{peak.energy:.1f} keV"
+            )
+
         formatted_name = rf"$^{{{isotope_results.isotope[:3]}}}$Ag"
         ax.set_title(f"Analytical A₀ for {formatted_name}")
         ax.set_xlabel("Measurement Index")
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-    def _exponential_decay_model(self, 
-                        t: NDArray, 
-                        λ: float, 
-                        A0: float) -> NDArray:
+    def _exponential_decay_model(self, t: NDArray, λ: float, A0: float) -> NDArray:
         """
         Exponential decay model for radioactive activity: A(t) = A₀ · exp(-λt).
-    
+
         Parameters
         ----------
         t : NDArray
@@ -829,7 +887,7 @@ class SpectrumAnalysis:
             Decay constant [s⁻¹].
         A0 : float
             Initial activity at t=0 [Bq].
-            
+
         Returns
         -------
         NDArray
