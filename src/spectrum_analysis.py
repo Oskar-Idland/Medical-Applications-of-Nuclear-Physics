@@ -190,6 +190,16 @@ class SpectrumAnalysis:
     calibration_source : Path or ci.Calibration, optional
         Either a path to a calibration file or a Calibration object,
         default is 'calibration.json' in the root path.
+    isotopes : list[str], optional
+        List of isotope identifiers to analyze, by default ["108AG", "110AG"].
+    root_path : Path, optional
+        Root directory for the project, by default uses parent of current file.
+    spec_dir : str, optional
+        Subdirectory name for spectrum files, by default "spectra".
+    fig_dir : str, optional
+        Subdirectory name for figure output, by default "figs".
+    fit_config : dict, optional
+        Configuration parameters for peak fitting, by default {"SNR_min": 3.5, "dE_511": 9}.
 
     Attributes
     ----------
@@ -221,18 +231,12 @@ class SpectrumAnalysis:
         Array of time differences between each measurement and the first measurement.
     isotope_energy : set
         Set of tuples containing (isotope, energy) pairs found in the spectra.
-    Ag108 : IsotopeResults
-        Results for Ag-108 isotope measurements and fits.
-    Ag110 : IsotopeResults
-        Results for Ag-110 isotope measurements and fits.
-    A0_analytical_108 : list[float]
-        List of analytical A0 values for Ag-108 measurements.
-    A0_analytical_110 : list[float]
-        List of analytical A0 values for Ag-110 measurements.
-    A0_analytical_energies_108 : list[float]
-        List of energies corresponding to A0_analytical_108 measurements.
-    A0_analytical_energies_110 : list[float]
-        List of energies corresponding to A0_analytical_110 measurements.
+    isotope_results : dict[str, IsotopeResults]
+        Dictionary mapping isotope names to their analysis results.
+    analytical_A0 : dict[str, list[float]]
+        Dictionary mapping isotope names to lists of analytical A0 values.
+    analytical_energies : dict[str, list[float]]
+        Dictionary mapping isotope names to lists of energies corresponding to analytical A0 values.
 
     Methods
     -------
@@ -242,6 +246,12 @@ class SpectrumAnalysis:
         Plot the analytical A0 values for each isotope and peak.
     `calculate_A0`(N_c: UFloat, λ: UFloat, ε: UFloat, I_γ: UFloat, Δt_c: float, Δt_d: float) -> UFloat:
         Calculate initial activity analytically.
+    `get_isotope_results`(isotope: str) -> IsotopeResults | None:
+        Get results for a specific isotope.
+    `get_analytical_A0`(isotope: str) -> list[float]:
+        Get analytical A0 values for a specific isotope.
+    `get_analytical_energies`(isotope: str) -> list[float]:
+        Get analytical energies for a specific isotope.
 
     Private Methods
     ---------------
@@ -270,9 +280,11 @@ class SpectrumAnalysis:
         spec_filepath: str | Path,
         Δt_d: float,
         calibration_source: Path | ci.Calibration | None = None,
+        isotopes: list[str] | None = None,
         root_path: Path | None = None,
         spec_dir: str = "spectra",
         fig_dir: str = "figs",
+        fit_config: dict | None = None,
     ) -> None:
 
         # Setup paths
@@ -308,17 +320,16 @@ class SpectrumAnalysis:
 
         # Core parameters
         self.Δt_d = Δt_d  # Delay time between irradiation and measurement (s)
-        self.isotopes = ["108AG", "110AG"]  # Isotopes to analyze
-        self.fit_config = {"SNR_min": 3.5, "dE_511": 9}  # Configuration for fitting
+        self.isotopes = isotopes or ["108AG", "110AG"]  # Isotopes to analyze (configurable with default)
+        self.fit_config = fit_config or {"SNR_min": 3.5, "dE_511": 9}  # Configuration for fitting
 
         # Extract job info and run analysis
         self.job_specs = self._get_job_specs()
         self.spectrum_list, self.time_deltas, self.isotope_energy = (
             self._load_spectrum_files(self.job_specs)
         )
-        self.Ag108, self.Ag110 = self._calculate_activities(self.spectrum_list)
-        self.Ag108.A0, self.Ag108.cov = self._fit_decay_curve(self.Ag108)
-        self.Ag110.A0, self.Ag110.cov = self._fit_decay_curve(self.Ag110)
+        self.isotope_results = self._calculate_activities(self.spectrum_list)
+        self._fit_all_decay_curves()
 
     def plot_activity(self, save_fig: bool = True) -> None:
         """
@@ -329,11 +340,19 @@ class SpectrumAnalysis:
         save_fig : bool, optional
             Whether to save the figure to file, by default True.
         """
-        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        n_isotopes = len(self.isotope_results)
+        if n_isotopes == 0:
+            print("No isotope results to plot.")
+            return
+            
+        # Create subplots based on number of isotopes
+        fig, axes = plt.subplots(1, n_isotopes, figsize=(7.5 * n_isotopes, 6))
+        if n_isotopes == 1:
+            axes = [axes]  # Make it a list for consistency
 
-        # Plot isotope data
-        self._plot_activity_decay(ax1, self.Ag108)
-        self._plot_activity_decay(ax2, self.Ag110)
+        # Plot each isotope
+        for i, (isotope_name, isotope_result) in enumerate(self.isotope_results.items()):
+            self._plot_activity_decay(axes[i], isotope_result)
 
         plt.suptitle(f"Activity Analysis for {self.spec_filepath.stem}")
         plt.tight_layout()
@@ -355,18 +374,27 @@ class SpectrumAnalysis:
         save_fig : bool, optional
             Whether to save the figure to file, by default True.
         """
-        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        n_isotopes = len(self.isotope_results)
+        if n_isotopes == 0:
+            print("No isotope results to plot.")
+            return
+            
+        # Create subplots based on number of isotopes
+        fig, axes = plt.subplots(1, n_isotopes, figsize=(7.5 * n_isotopes, 6))
+        if n_isotopes == 1:
+            axes = [axes]  # Make it a list for consistency
 
-        # Use the helper method for both isotopes
-        self._plot_analytical_A0_for_isotope(
-            ax1, self.Ag108, self.A0_analytical_108, self.A0_analytical_energies_108
-        )
-        self._plot_analytical_A0_for_isotope(
-            ax2, self.Ag110, self.A0_analytical_110, self.A0_analytical_energies_110
-        )
+        # Plot each isotope
+        for i, (isotope_name, isotope_result) in enumerate(self.isotope_results.items()):
+            self._plot_analytical_A0_for_isotope(
+                axes[i], isotope_result, 
+                self.analytical_A0[isotope_name], 
+                self.analytical_energies[isotope_name]
+            )
 
         # Add y-axis label to the first subplot
-        ax1.set_ylabel("Analytical A₀ [Bq]")
+        if axes:
+            axes[0].set_ylabel("Analytical A₀ [Bq]")
 
         plt.suptitle(f"Analytical A₀ Calculation for {self.spec_filepath.stem}")
         plt.tight_layout(rect=(0.0, 0.03, 1.0, 0.95))
@@ -409,6 +437,61 @@ class SpectrumAnalysis:
         count_rate_correction = 1 - uexp(-λ * Δt_c)  # type: ignore
         decay_correction = uexp(-λ * Δt_d)  # type: ignore
         return (N_c * λ) / (ε * I_γ * count_rate_correction * decay_correction)  # type: ignore
+
+    def get_isotope_results(self, isotope: str) -> IsotopeResults | None:
+        """
+        Get results for a specific isotope.
+
+        Parameters
+        ----------
+        isotope : str
+            Isotope identifier (e.g., '108AG', '110AG').
+
+        Returns
+        -------
+        IsotopeResults | None
+            Results for the specified isotope, or None if not found.
+        """
+        return self.isotope_results.get(isotope.upper())
+
+    def get_analytical_A0(self, isotope: str) -> list[float]:
+        """
+        Get analytical A0 values for a specific isotope.
+
+        Parameters
+        ----------
+        isotope : str
+            Isotope identifier (e.g., '108AG', '110AG').
+
+        Returns
+        -------
+        list[float]
+            List of analytical A0 values for the isotope.
+        """
+        return self.analytical_A0.get(isotope.upper(), [])
+
+    def get_analytical_energies(self, isotope: str) -> list[float]:
+        """
+        Get analytical energies for a specific isotope.
+
+        Parameters
+        ----------
+        isotope : str
+            Isotope identifier (e.g., '108AG', '110AG').
+
+        Returns
+        -------
+        list[float]
+            List of energies corresponding to analytical A0 values.
+        """
+        return self.analytical_energies.get(isotope.upper(), [])
+
+    def _fit_all_decay_curves(self) -> None:
+        """
+        Fit decay curves for all isotopes in isotope_results.
+        """
+        for isotope_name, isotope_result in self.isotope_results.items():
+            isotope_result.A0, isotope_result.cov = self._fit_decay_curve(isotope_result)
 
     def _get_job_specs(self) -> dict[str, int]:
         """
@@ -580,7 +663,7 @@ class SpectrumAnalysis:
 
     def _calculate_activities(
         self, spectrum_list: NDArray
-    ) -> tuple[IsotopeResults, IsotopeResults]:
+    ) -> dict[str, IsotopeResults]:
         """
         Calculate activities for each gamma peak in each spectrum.
 
@@ -591,16 +674,16 @@ class SpectrumAnalysis:
 
         Returns
         -------
-        tuple[IsotopeResults, IsotopeResults]
-            Tuple containing IsotopeResults for Ag-108 and Ag-110.
+        dict[str, IsotopeResults]
+            Dictionary mapping isotope names to their IsotopeResults.
         """
         # Initialize results dictionary
-        isotope_results = {
-            "108AG": IsotopeResults("108AG"),
-            "110AG": IsotopeResults("110AG"),
-        }
-        analytical_A0 = {"108AG": [], "110AG": []}
-        analytical_energies = {"108AG": [], "110AG": []}
+        isotope_results = {}
+        for isotope in self.isotopes:
+            isotope_results[isotope] = IsotopeResults(isotope)
+        
+        self.analytical_A0 = {isotope: [] for isotope in self.isotopes}
+        self.analytical_energies = {isotope: [] for isotope in self.isotopes}
 
         # Process each spectrum
         for spec_idx, (spec, time_delta) in enumerate(
@@ -644,20 +727,15 @@ class SpectrumAnalysis:
                         activity=A.nominal_value,
                         uncertainty=A.std_dev,
                     )
-                    analytical_A0[iso].append(A0_approx.nominal_value)
-                    analytical_energies[iso].append(E)
+                    self.analytical_A0[iso].append(A0_approx.nominal_value)
+                    self.analytical_energies[iso].append(E)
 
                 else:
                     print(
                         f"Warning: Unrecognized isotope {iso} in spectrum {spec_idx}. Skipping."
                     )
 
-        self.A0_analytical_108 = analytical_A0["108AG"]
-        self.A0_analytical_110 = analytical_A0["110AG"]
-        self.A0_analytical_energies_108 = analytical_energies["108AG"]
-        self.A0_analytical_energies_110 = analytical_energies["110AG"]
-
-        return isotope_results["108AG"], isotope_results["110AG"]
+        return isotope_results
 
     def _fit_decay_curve(
         self, isotope_results: IsotopeResults

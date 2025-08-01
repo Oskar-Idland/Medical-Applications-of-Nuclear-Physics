@@ -6,11 +6,18 @@ from path import Path
 from tendl import Tendl
 from numpy import float64
 import periodictable as pt
-from typing import Literal
 import matplotlib.pyplot as plt
 from numpy.typing import NDArray
+from typing import Literal, NewType
 from collections.abc import Iterable
 from matplotlib.figure import Figure
+
+# Custom types for nuclear physics data
+IsotopeName = NewType('IsotopeName', str)  # e.g., "108AG", "63CU"
+HalfLife = NewType('HalfLife', str)        # e.g., "2.4 m", "25 s", "Stable"
+Energy = NewType('Energy', float)          # Energy in MeV
+CrossSection = NewType('CrossSection', float)  # Cross-section in mb
+ObservationStatus = NewType('ObservationStatus', str)  # "✔", "✘", "~"
 
 
 class CrossSectionAnalysis:
@@ -64,8 +71,8 @@ class CrossSectionAnalysis:
     # Class constants
     SECONDS_PER_YEAR = 365 * 24 * 3600
     SECONDS_PER_MINUTE = 60
-    DEFAULT_ENERGY_LIMIT = 60.0  # MeV
-    DEFAULT_CS_THRESHOLD = 1e-2  # mb
+    DEFAULT_ENERGY_LIMIT: Energy = Energy(60.0)  # MeV
+    DEFAULT_CS_THRESHOLD: CrossSection = CrossSection(1e-2)  # mb
 
     target: str | Iterable[str]
     particle_beam: Literal["proton", "neutron", "deuteron"]
@@ -125,7 +132,7 @@ class CrossSectionAnalysis:
 
     def isotope_overview(
         self,
-        isotopes: Iterable[str] | None = None,
+        isotopes: Iterable[IsotopeName] | None = None,
         max_half_life: float | None = None,
         min_half_life: float | None = None,
         grayzone_half_life: float | None = None,
@@ -156,15 +163,15 @@ class CrossSectionAnalysis:
             DataFrame with isotope information and observation status.
         """
         if isotopes is None:
-            isotopes = self.products
-        isotopes = [iso.upper() for iso in isotopes]
+            isotopes = [IsotopeName(iso) for iso in self.products]
+        isotopes = [IsotopeName(iso.upper()) for iso in isotopes]
 
         max_half_life = max_half_life or self.max_half_life
         min_half_life = min_half_life or self.min_half_life
         grayzone_half_life = grayzone_half_life or self.grayzone_half_life
 
         observed_isotopes, grayzone_isotopes = self._filter_products_halflife(
-            isotopes,
+            [str(iso) for iso in isotopes],
             max_half_life=max_half_life,
             min_half_life=min_half_life,
             grayzone_half_life=grayzone_half_life,
@@ -178,9 +185,9 @@ class CrossSectionAnalysis:
 
         data = []
         for iso in isotope_objects:
-            iso_name = iso._short_name
+            iso_name = IsotopeName(iso._short_name)
             status = self._get_isotope_status_symbol(
-                iso_name, observed_isotopes, grayzone_isotopes
+                iso_name, [IsotopeName(iso) for iso in observed_isotopes], [IsotopeName(iso) for iso in grayzone_isotopes]
             )
 
             unit = iso.optimum_units()
@@ -210,8 +217,8 @@ class CrossSectionAnalysis:
     def save_tendl_data(
         self,
         path: Path,
-        isotopes: Iterable[str] | None = None,
-        Elimit: float = DEFAULT_ENERGY_LIMIT,
+        isotopes: Iterable[IsotopeName] | None = None,
+        Elimit: Energy = DEFAULT_ENERGY_LIMIT,
         silent: bool = False,
     ) -> None:
         """
@@ -234,7 +241,7 @@ class CrossSectionAnalysis:
             If the path doesn't exist and can't be created.
         """
         if isotopes is None:
-            isotopes = self.products
+            isotopes = [IsotopeName(iso) for iso in self.products]
 
         path.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
 
@@ -254,7 +261,7 @@ class CrossSectionAnalysis:
                     print(f"Error processing {iso_name}: {e}")
 
     def load_tendl_data(
-        self, path: Path, isotopes: Iterable[str] | None = None, store: bool = True
+        self, path: Path, isotopes: Iterable[IsotopeName] | None = None, store: bool = True
     ) -> pd.DataFrame:
         """
         Load Tendl cross-section data from .npy files.
@@ -279,7 +286,7 @@ class CrossSectionAnalysis:
             If the specified directory doesn't exist.
         """
         if isotopes is None:
-            isotopes = self.products
+            isotopes = [IsotopeName(iso) for iso in self.products]
 
         if not path.exists():
             raise FileNotFoundError(f"Directory {path} does not exist.")
@@ -358,10 +365,10 @@ class CrossSectionAnalysis:
 
     def filter_products_Cs(
         self,
-        isotopes: Iterable[str] | None = None,
-        Cs_threshold: float = DEFAULT_CS_THRESHOLD,
-        E_limit: float | None = DEFAULT_ENERGY_LIMIT,
-        E_beam: float | None = None,
+        isotopes: Iterable[IsotopeName] | None = None,
+        Cs_threshold: CrossSection = DEFAULT_CS_THRESHOLD,
+        E_limit: Energy | None = DEFAULT_ENERGY_LIMIT,
+        E_beam: Energy | None = None,
     ) -> pd.DataFrame:
         """
         Filter isotopes based on cross-section thresholds.
@@ -394,8 +401,8 @@ class CrossSectionAnalysis:
         return self._format_filtered_results(filtered_data, Cs_threshold, E_beam)
 
     def _get_isotope_status_symbol(
-        self, iso_name: str, observed_isotopes: list[str], grayzone_isotopes: list[str]
-    ) -> str:
+        self, iso_name: IsotopeName, observed_isotopes: list[IsotopeName], grayzone_isotopes: list[IsotopeName]
+    ) -> ObservationStatus:
         """
         Get single status symbol for isotope observation status.
 
@@ -414,15 +421,15 @@ class CrossSectionAnalysis:
             Status symbol: "✔" (observed), "~" (maybe), "✘" (not observed).
         """
         if iso_name in observed_isotopes:
-            return "✔"  # Observed
+            return ObservationStatus("✔")  # Observed
         elif iso_name in grayzone_isotopes:
-            return "~"  # Maybe observed (grayzone)
+            return ObservationStatus("~")  # Maybe observed (grayzone)
         else:
-            return "✘"  # Not observed
+            return ObservationStatus("✘")  # Not observed
 
     def _collect_isotope_data(
-        self, isotopes: Iterable[str] | None, E_limit: float | None
-    ) -> dict[str, tuple[NDArray[float64], NDArray[float64]]]:
+        self, isotopes: Iterable[IsotopeName] | None, E_limit: Energy | None
+    ) -> dict[IsotopeName, tuple[NDArray[float64], NDArray[float64]]]:
         """
         Collects cross-section data for specified isotopes.
 
@@ -455,8 +462,8 @@ class CrossSectionAnalysis:
                 )
 
             for _, iso in self.loaded_data.iterrows():
-                iso_name = iso["Name"].upper()
-                if iso_name in self.observed_isotopes:
+                iso_name = IsotopeName(iso["Name"].upper())
+                if iso_name in [IsotopeName(obs_iso) for obs_iso in self.observed_isotopes]:
                     data[iso_name] = (iso["E"], iso["Cs"])
 
         # If isotopes is a list of strings
@@ -471,8 +478,8 @@ class CrossSectionAnalysis:
         return data
 
     def _fetch_isotope_data(
-        self, isotopes: Iterable[str], E_limit: float | None
-    ) -> dict[str, tuple[NDArray[float64], NDArray[float64]]]:
+        self, isotopes: Iterable[IsotopeName], E_limit: Energy | None
+    ) -> dict[IsotopeName, tuple[NDArray[float64], NDArray[float64]]]:
         """
         Fetches cross-section data for a list of isotopes, either from pre-loaded data or from the TENDL database.
 
@@ -505,7 +512,7 @@ class CrossSectionAnalysis:
                 ]
                 if not matching_rows.empty:
                     row = matching_rows.iloc[0]
-                    data[iso_name.upper()] = (row["E"], row["Cs"])
+                    data[IsotopeName(iso_name.upper())] = (row["E"], row["Cs"])
                     continue
 
             # Fetch from Tendl if not in loaded data
@@ -513,7 +520,7 @@ class CrossSectionAnalysis:
                 iso = ci.Isotope(iso_name.upper())
                 E, Cs = self.tendl.tendl_data(str(iso.Z), str(iso.A), Elimit=E_limit)
                 if E is not None and Cs is not None:
-                    data[iso._short_name] = (E, Cs)
+                    data[IsotopeName(iso._short_name)] = (E, Cs)
             except Exception as e:
                 print(f"Warning: Could not fetch data for {iso_name}: {e}")
 
@@ -521,10 +528,10 @@ class CrossSectionAnalysis:
 
     def _apply_cs_filter(
         self,
-        data: dict[str, tuple[NDArray[float64], NDArray[float64]]],
-        Cs_threshold: float,
-        E_beam: float | None,
-    ) -> dict[str, tuple[NDArray[float64], NDArray[float64]]]:
+        data: dict[IsotopeName, tuple[NDArray[float64], NDArray[float64]]],
+        Cs_threshold: CrossSection,
+        E_beam: Energy | None,
+    ) -> dict[IsotopeName, tuple[NDArray[float64], NDArray[float64]]]:
         """
         Filters the input data dictionary based on a cross-section (Cs) threshold.
         For each isotope in the input data, checks if the cross-section exceeds the specified threshold.
@@ -556,9 +563,9 @@ class CrossSectionAnalysis:
 
     def _format_filtered_results(
         self,
-        filtered_data: dict[str, tuple[NDArray[float64], NDArray[float64]]],
-        Cs_threshold: float,
-        E_beam: float | None,
+        filtered_data: dict[IsotopeName, tuple[NDArray[float64], NDArray[float64]]],
+        Cs_threshold: CrossSection,
+        E_beam: Energy | None,
     ) -> pd.DataFrame:
         """
         Formats and sorts filtered cross-section results into a DataFrame.
