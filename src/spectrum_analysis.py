@@ -329,7 +329,7 @@ class SpectrumAnalysis:
         save_fig : bool, optional
             Whether to save the figure to file, by default True.
         """
-        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
+        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
         # Plot isotope data
         self._plot_activity_decay(ax1, self.Ag108)
@@ -355,7 +355,7 @@ class SpectrumAnalysis:
         save_fig : bool, optional
             Whether to save the figure to file, by default True.
         """
-        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
+        _, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
         # Use the helper method for both isotopes
         self._plot_analytical_A0_for_isotope(
@@ -516,10 +516,9 @@ class SpectrumAnalysis:
 
         # Calculate time deltas
         time_deltas = np.array(
-            [0]
-            + [
-                pd.Timedelta(start_times[i] - start_times[i - 1]).total_seconds()
-                for i in range(1, len(start_times))
+            [
+                pd.Timedelta(start_times[i] - start_times[0]).total_seconds()
+                for i in range(len(start_times))
             ]
         )
 

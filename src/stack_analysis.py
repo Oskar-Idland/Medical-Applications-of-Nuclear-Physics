@@ -1,6 +1,7 @@
 import curie as ci
 import numpy as np
 import pandas as pd
+from pathlib import Path
 import matplotlib.pyplot as plt
 from numpy.typing import NDArray
 from numpy import float64, int64
@@ -215,6 +216,8 @@ class StackAnalysis:
         target: str | None = None,
         n_gammas: int = 5,
         title: str = "",
+        save_fig: bool = False,
+        fig_path: Path | None = None,
     ) -> Figure:
         """
         Plots counting times as a function of delay times for the top gamma lines.
@@ -229,6 +232,10 @@ class StackAnalysis:
             Number of gamma lines to plot, sorted by initial counting time. Default is 5.
         title : str, optional
             Title for the plot. Default is an empty string.
+        save_fig : bool, optional
+            If True, saves the figure to the specified path. Default is False.
+        fig_path : Path or None, optional
+            Path to save the figure if `save_fig` is True. Default is None.
 
         Returns
         -------
@@ -257,6 +264,11 @@ class StackAnalysis:
         plt.legend()
         plt.grid()
         plt.tight_layout()
+
+        if save_fig:
+            if fig_path is None:
+                fig_path = Path.cwd() / "figs" / "stack_analysis_plot.pdf"
+            plt.savefig(fig_path)
 
         return plt.gcf()
 
