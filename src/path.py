@@ -1,6 +1,12 @@
+import os
 import pathlib
 
-class Path(pathlib.PosixPath):
+if os.name == 'nt':
+    _PathBase = pathlib.WindowsPath
+else:
+    _PathBase = pathlib.PosixPath
+
+class Path(_PathBase):
     """
     Wrapper for pathlib.Path to ensure string representation is used
     in certain operations, such as endswith and split.
