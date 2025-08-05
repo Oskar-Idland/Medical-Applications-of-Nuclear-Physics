@@ -735,6 +735,7 @@ class CrossSectionAnalysis:
             print(" ".join(map(str.title, observed_isotopes)))
             print(f"\nFound {len(grayzone_isotopes)}/{n_total} grayzone isotopes:")
             print(" ".join(map(str.title, grayzone_isotopes)))
+            print(f"\n")
 
         return observed_isotopes, grayzone_isotopes
 
