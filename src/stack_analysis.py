@@ -169,8 +169,10 @@ class StackAnalysis:
                 if isinstance(λ, tuple):
                     λ = λ[0]
 
+                amu_to_g = 1.66053906660e-24  # g/amu
                 M = iso.mass
-                N_T = A * Avogadro / M  # atoms/cm^2
+                M_g = M * amu_to_g
+                N_T = A / M_g  # atoms/cm^2
                 idx = np.abs(
                     E - foil.mu_E
                 ).argmin()  # Find the index of the closest energy to the beam energy
@@ -358,4 +360,5 @@ class StackAnalysis:
             Counting time in seconds.
         """
         t_c = np.log(1 - (N_c * λ) / (A0 * I_γ * ε_γ * np.exp(-λ * t_d))) / -λ
+
         return t_c
