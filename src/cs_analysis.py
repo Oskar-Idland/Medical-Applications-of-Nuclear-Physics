@@ -398,8 +398,9 @@ class CrossSectionAnalysis:
             If isotopes parameter has invalid type.
         """
         data = self._collect_isotope_data(isotopes, E_limit)
+        total_before_filtering = len(data)
         filtered_data = self._apply_cs_filter(data, Cs_threshold, E_beam)
-        return self._format_filtered_results(filtered_data, Cs_threshold, E_beam)
+        return self._format_filtered_results(filtered_data, Cs_threshold, E_beam, total_before_filtering)
 
     def _get_isotope_status_symbol(
         self, iso_name: IsotopeName, observed_isotopes: list[IsotopeName], grayzone_isotopes: list[IsotopeName]
@@ -567,6 +568,7 @@ class CrossSectionAnalysis:
         filtered_data: dict[IsotopeName, tuple[NDArray[float64], NDArray[float64]]],
         Cs_threshold: CrossSection,
         E_beam: Energy | None,
+        total_before_filtering: int,
     ) -> pd.DataFrame:
         """
         Formats and sorts filtered cross-section results into a DataFrame.
@@ -579,6 +581,8 @@ class CrossSectionAnalysis:
             Threshold value for cross-section (mb) used for filtering.
         E_beam : float or None
             Beam energy in MeV, or None if not specified.
+        total_before_filtering : int
+            Total number of isotopes before cross-section filtering was applied.
 
         Returns
         -------
@@ -600,10 +604,9 @@ class CrossSectionAnalysis:
             by="Cs", key=lambda x: x.apply(np.max), ascending=False, ignore_index=True
         )
 
-        total_count = len(filtered_data)
         energy_info = f" at E = {E_beam} MeV" if E_beam is not None else ""
         print(
-            f"Found {len(df)}/{total_count} isotopes with cross-sections "
+            f"Found {len(df)}/{total_before_filtering} isotopes with cross-sections "
             f"above {Cs_threshold} mb{energy_info}:"
         )
         print(" ".join(df["Name"].tolist()))
