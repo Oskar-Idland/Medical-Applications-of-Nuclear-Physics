@@ -175,6 +175,7 @@ class CrossSectionAnalysis:
             max_half_life=max_half_life,
             min_half_life=min_half_life,
             grayzone_half_life=grayzone_half_life,
+            silent=True,  # Suppress duplicate printing
         )
 
         # Create and sort isotope objects
@@ -684,6 +685,7 @@ class CrossSectionAnalysis:
         max_half_life: float,
         min_half_life: float,
         grayzone_half_life: float,
+        silent: bool = False,
     ) -> tuple[list[str], list[str]]:
         """
         Filter isotopes by half-life criteria.
@@ -698,6 +700,8 @@ class CrossSectionAnalysis:
             Minimum half-life in seconds.
         grayzone_half_life : float
             Half-life threshold in minutes for grayzone classification.
+        silent : bool, optional
+            If True, suppresses print statements, by default False.
 
         Returns
         -------
@@ -725,12 +729,12 @@ class CrossSectionAnalysis:
             except Exception:
                 # Skip isotopes that can't be processed
                 continue
-
-        n_total = len(list(isotopes))
-        print(f"Found {len(observed_isotopes)}/{n_total} isotopes for observation:")
-        print(" ".join(map(str.title, observed_isotopes)))
-        print(f"\nFound {len(grayzone_isotopes)}/{n_total} grayzone isotopes:")
-        print(" ".join(map(str.title, grayzone_isotopes)))
+        if not silent:
+            n_total = len(list(isotopes))
+            print(f"Found {len(observed_isotopes)}/{n_total} isotopes for observation:")
+            print(" ".join(map(str.title, observed_isotopes)))
+            print(f"\nFound {len(grayzone_isotopes)}/{n_total} grayzone isotopes:")
+            print(" ".join(map(str.title, grayzone_isotopes)))
 
         return observed_isotopes, grayzone_isotopes
 
