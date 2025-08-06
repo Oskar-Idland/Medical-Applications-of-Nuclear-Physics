@@ -205,11 +205,12 @@ class StackAnalysis:
                                 f"Skipping isotope {iso_name} from target {target} with counting time {t_c[0]} s, which exceeds the maximum allowed time {t_max} s."
                             )
                         continue
-
+                    
                     unit = iso.optimum_units()
                     entry = {
                         "t_c0": CountingTime(t_c[0]),
                         "gamma_energy": E_γ,
+                        "intensity": I_γ,
                         "isotope": iso_name,
                         "target": target,
                         "foil_number": foil["name"][-2:],
