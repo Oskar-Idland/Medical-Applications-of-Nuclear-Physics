@@ -147,7 +147,7 @@ class StackAnalysis:
         and determines the optimal counting time based on the specified detector efficiency.
         Isotopes requiring counting times longer than `t_max` are skipped.
         """
-
+        
         results_list = []
         for _, foil in self.stack.stack.iterrows():
             target = foil["compound"]
@@ -218,6 +218,7 @@ class StackAnalysis:
                         "t_c": t_c,
                         "t_d": t_d,
                     }
+                        
                     results_list.append(entry)
 
         results_df = pd.DataFrame(results_list).sort_values(
@@ -284,6 +285,96 @@ class StackAnalysis:
         if save_fig:
             if fig_path is None:
                 fig_path = Path.cwd() / "figs" / "stack_analysis_plot.pdf"
+            plt.savefig(fig_path)
+
+        return plt.gcf()
+
+    def plot_with_uncertainties(
+        self,
+        counting_times: pd.DataFrame,
+        target: str | None = None,
+        n_gammas: int = 3,
+        title: str = "",
+        save_fig: bool = False,
+        fig_path: Path | None = None,
+    ) -> Figure:
+        """
+        Plots counting times with uncertainties as a function of delay times for the top gamma lines.
+
+        Parameters
+        ----------
+        counting_times : pd.DataFrame
+            DataFrame containing counting time data with uncertainties. Must have columns 
+            't_d', 't_c', 't_c_unc', 'gamma_energy', 'isotope', 'target', and 'foil_number'.
+        target : str or None, optional
+            If provided, only plot data for this target material. Default is None.
+        n_gammas : int, optional
+            Number of gamma lines to plot, sorted by initial counting time. Default is 3.
+        title : str, optional
+            Title for the plot. Default is an empty string.
+        save_fig : bool, optional
+            If True, saves the figure to the specified path. Default is False.
+        fig_path : Path or None, optional
+            Path to save the figure if `save_fig` is True. Default is None.
+
+        Returns
+        -------
+        Figure
+            Matplotlib Figure object containing the plot with uncertainty bands.
+        """
+        if target is not None:
+            counting_times = counting_times[counting_times["target"] == target]
+
+        counting_times = counting_times.sort_values(
+            by="t_c0", ascending=True, ignore_index=True
+        )
+
+        # Check if uncertainty data is available
+        if 't_c_unc' not in counting_times.columns:
+            print("Warning: No uncertainty data found. Using standard plot instead.")
+            return self.plot(counting_times, target, n_gammas, title, save_fig, fig_path)
+
+        plt.figure(figsize=(12, 8))
+        
+        for i, (_, row) in enumerate(counting_times.head(n_gammas).iterrows()):
+            t_d = row["t_d"]
+            t_c = row["t_c"]
+            t_c_unc = row["t_c_unc"]
+            
+            label = (f"E: {row['gamma_energy']:.1f} keV, "
+                    f"$^{{{row['isotope'][:-2]}}}${row['isotope'][-2:]}, "
+                    f"target: {row['target']}, foil: {row['foil_number']}")
+            
+            # Plot the main line
+            plt.plot(t_d, t_c, label=label, linewidth=2)
+            
+            # Add uncertainty band if available and not all NaN
+            if not np.all(np.isnan(t_c_unc)):
+                plt.fill_between(t_d, t_c - t_c_unc, t_c + t_c_unc, alpha=0.2)
+
+        plt.xlabel("Delay Time (s)")
+        plt.ylabel("Counting Time (s)")
+        plt.title(title)
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+
+        # Format x-axis for time
+        ax = plt.gca()
+        x_ticks = ax.get_xticks()
+        x_labels = []
+        for tick in x_ticks:
+            if tick >= 3600:
+                x_labels.append(f"{tick/3600:.1f}h")
+            elif tick >= 60:
+                x_labels.append(f"{tick/60:.0f}min")
+            else:
+                x_labels.append(f"{tick:.0f}s")
+        ax.set_xticklabels(x_labels)
+
+        if save_fig:
+            if fig_path is None:
+                fig_path = Path.cwd() / "figs" / "stack_analysis_uncertainties.pdf"
             plt.savefig(fig_path)
 
         return plt.gcf()
