@@ -99,4 +99,4 @@ The main analysis workflow is contained in `analysis.ipynb`. Run the notebook ce
 1. Perform detector calibration and efficiency analysis
 2. Analyze experimental activity decay data  
 3. Evaluate cross-sections for target and monitor materials
-4. Calculate optimal counting times for isotope detection with uncertainties
+4. Calculate optimal counting times for isotope detection
